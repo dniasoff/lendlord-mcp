@@ -54,6 +54,8 @@ Add the server to `~/.cursor/mcp.json` (or the project's `.cursor/mcp.json`):
 
 Cursor starts the configured command as its MCP server. To pick up a newly published tool or version, use `lendlord-mcp@latest` as above, then restart the server from Cursor's MCP settings (or restart Cursor). If the tool list is still stale, remove and re-add the server so Cursor starts a fresh `npx` process.
 
+If several MCP clients start at once, install the package once (`npm install --global lendlord-mcp`) and configure each client to run `lendlord-mcp` directly. This avoids having every client invoke `npx` to resolve or install the package at startup. You can confirm the installed version with `lendlord-mcp --version`.
+
 ### Remote (online / hosted agents)
 
 Run it as a Streamable HTTP server behind HTTPS, then point the agent at `https://<host>/mcp` with the bearer token.

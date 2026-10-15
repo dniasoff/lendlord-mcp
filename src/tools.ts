@@ -301,7 +301,11 @@ export async function listCommunications(
     skip += items.length;
     hasMore = Boolean(page.hasMore) && items.length > 0;
   }
-  return { communications: found, hasMore, nextSkip: skip };
+  // `skip` is the account-wide API offset while filtering by property locally.
+  // Once the scan is complete, expose a result-relative value (there is no next
+  // page in that case); while more results remain, preserve the API offset so
+  // callers can continue the scan without duplicates.
+  return { communications: found, hasMore, nextSkip: hasMore ? skip : opts.skip + found.length };
 }
 
 export interface TransactionRecord {
