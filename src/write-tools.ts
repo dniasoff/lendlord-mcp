@@ -44,6 +44,15 @@ export function normaliseFields(fields: Record<string, unknown>): Record<string,
   return coercePropertyFields(fields).values;
 }
 
+export function legacyPropertyImageForm(key: string, file: UploadFile, collectionName = "images"): FormData {
+  const form = new FormData();
+  form.append("key", key);
+  form.append("file", new Blob([new Uint8Array(file.data)], { type: file.type }), file.name);
+  form.append("name", file.name.replace(/ {2,}/, " "));
+  form.append("collectionName", collectionName);
+  return form;
+}
+
 /** Full replacement body for /api/updateProperty: current editable fields + changes; null deletes a field. */
 export function mergeProperty(current: PropertyDetails, changes: Record<string, unknown>) {
   const property: Record<string, unknown> = {};
@@ -77,6 +86,68 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
       annotations: { readOnlyHint: true },
     },
     safe(async () => json({ propertyFields: EDITABLE_PROPERTY_FIELDS, documentSlots: PROPERTY_DOCUMENT_SLOTS })),
+  );
+
+  server.registerTool(
+    "update_property_images",
+    {
+      title: "Update property Photos",
+      description:
+        "Add photos to a property's Photos gallery, remove selected gallery images by key, or replace images by adding new files and removing old keys together. This is separate from upload_document, which stores files under Documents. Provide one or more image files and/or removeImageKeys. Image keys are the keys shown by get_property under fields.images.",
+      inputSchema: {
+        propertyId: z.string(),
+        files: z
+          .array(
+            z.object({
+              filePath: z.string().optional(),
+              url: z.string().url().optional(),
+              base64: z.string().optional(),
+              fileName: z.string().optional(),
+              mimeType: z.string().optional(),
+            }),
+          )
+          .optional(),
+        removeImageKeys: z.array(z.string().min(1)).optional(),
+        confirm,
+      },
+      annotations: WRITE,
+    },
+    safe(async ({ propertyId, files = [], removeImageKeys = [], confirm: ok }) => {
+      if (!files.length && !removeImageKeys.length) return fail("Provide image files, removeImageKeys, or both.");
+      for (const [index, file] of files.entries()) {
+        const sources = [file.filePath, file.url, file.base64].filter(Boolean).length;
+        if (sources !== 1) return fail(`File ${index + 1}: provide exactly one of filePath, url, or base64.`);
+        if (file.base64 && !file.fileName) return fail(`File ${index + 1}: fileName is required with base64.`);
+      }
+      const property = await lendlord.property(propertyId);
+      const currentImages = property.property.images;
+      const keys = currentImages && typeof currentImages === "object" ? Object.keys(currentImages) : [];
+      const unknownKeys = removeImageKeys.filter((key) => !keys.includes(key));
+      if (unknownKeys.length) return fail(`Image key(s) not found on this property: ${unknownKeys.join(", ")}`);
+      const blocked = gate(`update Photos for property "${property.property["Property Address"] ?? propertyId}"`, ok);
+      if (blocked) return blocked;
+
+      const prepared: { key: string; form: FormData }[] = [];
+      for (const [index, input] of files.entries()) {
+        const file = await loadFile(input);
+        if (!file.type.startsWith("image/")) return fail(`File ${index + 1} is not an image (${file.type}).`);
+        const key = `${Date.now()}${index ? `-${index}` : ""}`;
+        prepared.push({ key, form: legacyPropertyImageForm(key, file) });
+      }
+      const added: string[] = [];
+      for (const item of prepared) {
+        await lendlord.client.upload(`/api/legacy/documents/property/${propertyId}`, item.form, "PUT");
+        added.push(item.key);
+      }
+      for (const key of removeImageKeys) {
+        await lendlord.client.post(`/api/legacy/documents/remove/property/${propertyId}`, {
+          key,
+          collectionName: "images",
+        });
+      }
+      lendlord.invalidate();
+      return json({ propertyId, added, removed: removeImageKeys });
+    }),
   );
 
   server.registerTool(

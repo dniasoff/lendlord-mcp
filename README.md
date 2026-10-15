@@ -33,6 +33,27 @@ Claude Code CLI:
 claude mcp add lendlord -e LENDLORD_EMAIL=you@example.com -e LENDLORD_PASSWORD=... -- npx -y lendlord-mcp
 ```
 
+### Cursor
+
+Add the server to `~/.cursor/mcp.json` (or the project's `.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "lendlord": {
+      "command": "npx",
+      "args": ["-y", "lendlord-mcp@latest"],
+      "env": {
+        "LENDLORD_EMAIL": "you@example.com",
+        "LENDLORD_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+Cursor starts the configured command as its MCP server. To pick up a newly published tool or version, use `lendlord-mcp@latest` as above, then restart the server from Cursor's MCP settings (or restart Cursor). If the tool list is still stale, remove and re-add the server so Cursor starts a fresh `npx` process.
+
 ### Remote (online / hosted agents)
 
 Run it as a Streamable HTTP server behind HTTPS, then point the agent at `https://<host>/mcp` with the bearer token.
@@ -60,13 +81,13 @@ Without Docker: `MCP_TRANSPORT=http MCP_AUTH_TOKEN=... npx -y lendlord-mcp`. `GE
 | Area | Read | Write |
 |---|---|---|
 | Account | `get_account` (user, owners, plan limits) | |
-| Properties | `list_properties`, `get_property`, `list_property_fields`, `compliance_overview` | `add_property`, `update_property`, `delete_property` |
+| Properties | `list_properties`, `get_property`, `list_property_fields`, `compliance_overview` | `add_property`, `update_property`, `update_property_images`, `delete_property` |
 | Documents | `list_documents` | `upload_document` (path / URL / base64, into a slot like `gasCertificate` or a custom key), `rename_document`, `link_document`, `send_document` (emails it), `delete_document` |
 | Email filing | `find_property` | `file_email` |
 | Tenants | `list_tenants`, `get_tenant` | `add_tenant`, `update_tenant`, `delete_tenant` |
 | Maintenance & history | `list_communications` (up to 1000, filter by property), `get_communication` | `create_maintenance_report`, `log_communication` (back-dated email/call history), `update_communication`, `add_communication_message`, `delete_communication` |
 | Tasks & alerts | `list_tasks` | `create_task`, `update_task` (edit, complete, reopen, delete) |
-| Money | `get_rent_collection`, `list_transactions` (search, amount, type, property, with/without receipt), `get_transaction`, `get_profit_and_loss` | `attach_transaction_receipt`, `remove_transaction_receipt` |
+| Money | `get_rent_collection`, `list_transactions` (search, amount, type, property, with/without receipt), `get_transaction`, `get_profit_and_loss` | `update_transaction`, `attach_transaction_receipt`, `remove_transaction_receipt` |
 | Anything else | `lendlord_request` (GET) | `lendlord_request` (POST/PUT/PATCH/DELETE) |
 
 Property fields use Lendlord's own names, for example `"Property Value"`, `"EPC Due Date"` and `"Gas Certificate Due Date"`. Call `list_property_fields` for the full list. Updates are partial: only the fields you pass change, and `null` clears a field.
@@ -84,7 +105,9 @@ Anything ambiguous, such as `"73 m"` or `"about 150k"`, is rejected with a field
 
 **Tenants** belong to exactly one property (`propertyDetailsId`). `list_tenants`, `get_tenant` and `get_property` show the linked property's address, and `propertyMissing: true` flags a link to a deleted property. To move a tenant, use `update_tenant { fields: { propertyDetailsId } }`.
 
-**Reliability:** network drops and Lendlord's transient `500 socket hang up` / 502–504 errors are retried automatically for reads and updates. Uploads are retried only after checking that the file didn't actually land, so a retry never creates a duplicate document.
+**Reliability:** network drops and Lendlord's transient `500 socket hang up` / 502–504 errors are retried automatically for reads and updates. Document uploads are retried only after checking that the file didn't actually land, so a retry never creates a duplicate document.
+
+**Property Photos:** `update_property_images` uploads image files into the property's Photos gallery using Lendlord's legacy images collection. Pass `files` to add images, `removeImageKeys` to remove them, or both to replace old images after the new uploads succeed. The image keys are available under `get_property` → `fields.images`. `upload_document` remains for Documents such as deeds and EPCs.
 
 ## Filing emails against properties
 
@@ -103,7 +126,7 @@ Bank and manual transactions (payments) keep their attachment as a **receipt on 
 
 1. `list_transactions { startDate, endDate, search?, amount?, hasReceipt? }` to find the payment, for example the £27.74 Octopus payment with no receipt yet.
 2. `attach_transaction_receipt { transactionId, filePath | url | base64+fileName }` to attach the invoice. A transaction holds one attachment, and attaching again replaces it.
-3. `get_transaction` returns the receipt name and a temporary download link, and `remove_transaction_receipt` removes it.
+3. `get_transaction` returns the receipt name and a temporary download link, and `remove_transaction_receipt` removes it. `update_transaction` can change a transaction's property and/or category while keeping its receipt attached.
 
 Only the receipt changes: the rest of the transaction is re-saved exactly as it was.
 
