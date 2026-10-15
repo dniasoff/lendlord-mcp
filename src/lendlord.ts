@@ -28,7 +28,29 @@ export interface UserPayload {
   };
   applicants?: Record<string, unknown>[];
   portfolioDetails?: PropertyDetails[];
+  tenants?: Tenant[];
+  companies?: Record<string, unknown>[];
   historicalEntirePortfolio?: unknown[];
+}
+
+export interface Tenant {
+  _id: string;
+  name: string;
+  email?: string;
+  status?: string;
+  propertyDetailsId?: string;
+  [field: string]: unknown;
+}
+
+export interface Communication {
+  _id: string;
+  type: string;
+  propertyDetailsId?: string;
+  status?: string;
+  summary?: string;
+  description?: string;
+  messages?: { type: string; content: string; date: string; senderName?: string }[];
+  [field: string]: unknown;
 }
 
 export interface LendlordDocument {
@@ -70,6 +92,16 @@ export class Lendlord {
   async property(id: string): Promise<PropertyDetails> {
     const found = (await this.properties()).find((p) => p._id === id);
     if (!found) throw new Error(`No property with id ${id}. Use list_properties to find ids.`);
+    return found;
+  }
+
+  async tenants(): Promise<Tenant[]> {
+    return (await this.user()).tenants ?? [];
+  }
+
+  async tenant(id: string): Promise<Tenant> {
+    const found = (await this.tenants()).find((t) => t._id === id);
+    if (!found) throw new Error(`No tenant with id ${id}. Use list_tenants to find ids.`);
     return found;
   }
 

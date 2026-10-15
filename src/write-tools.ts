@@ -13,7 +13,7 @@ const confirm = z.boolean().optional().describe("Set true once the user has appr
 const fieldValue = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
-const MIME: Record<string, string> = {
+export const MIME: Record<string, string> = {
   ".pdf": "application/pdf", ".txt": "text/plain", ".csv": "text/csv", ".eml": "message/rfc822",
   ".doc": "application/msword", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ".xls": "application/vnd.ms-excel", ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -268,5 +268,10 @@ async function loadFile(args: { filePath?: string; url?: string; base64?: string
   }
   if (data.byteLength > MAX_UPLOAD_BYTES) throw new Error("File is larger than 25 MB");
   name ??= "upload";
-  return { name, data, type: type ?? MIME[extname(name).toLowerCase()] ?? "application/octet-stream" };
+  return { name, data, type: mimeFor(name, type) };
+}
+
+export function mimeFor(fileName: string, given?: string): string {
+  if (given && given !== "application/octet-stream") return given;
+  return MIME[extname(fileName).toLowerCase()] ?? given ?? "application/octet-stream";
 }

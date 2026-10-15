@@ -102,8 +102,8 @@ Constant `o = "/api/documents"`.
 | PATCH | `/api/documents/:id` | ✅ verified live. enc `{ name }` renames |
 | PATCH | `/api/documents/:docId/:entityType/:entityId` | enc JSON, edits the per-entity link |
 | DELETE | `/api/documents/:docId/:entityType/:entityId` | ✅ verified live. Unlinks the document, and deletes it when that was its only link |
-| POST | `/api/documents/copy` | enc `{ entities, key, path, … }`, links an existing file to other entities |
-| POST | `/api/documents/:id/send` | enc, emails the document |
+| POST | `/api/documents/copy` | ✅ enc `{ entities, key, path }`. Creates a **new copy** of the document (new id) on the target entities, named `<timestamp>_<key>.<ext>`, so rename it afterwards |
+| POST | `/api/documents/:id/send` | enc `{ email, subject, message, cc, replyTo }`, emails the document (not yet exposed as a tool) |
 | GET | `/api/getSignedUrl?download=&url=&fileName=` | S3 signed download URL |
 | POST | `/api/general/uploadTempFile` | multipart `key`, `file`, `name` |
 | POST | `/api/openAI/extractDataFromCertificate` | multipart `{ file, certificateType }` |
@@ -113,10 +113,19 @@ Entity types seen: `property`, `tenant`, `portfolio`. Property document slots (k
 
 ## Tenants and rent
 
+Tenants are read from `getUserById.tenants`. `/api/getClientTenants` returned `[]` for a landlord account and appears to be for other roles.
+
+| Method | Path | Body |
+|---|---|---|
+| POST | `/api/addTenant/:clientDetailsId` | ✅ enc `{ tenant: { name, email, propertyDetailsId, status:"Actual"\|"Prospect", rentPayment, paymentFrequency, tenancyStartDate, … , subTenants:[] } }` returns the tenant. Lendlord also auto-attaches a "Renters' Rights Act Information Sheet" document to the new tenant |
+| PUT | `/api/updateTenant/:id` | ✅ enc `{ tenant: <full tenant> }` |
+| DELETE | `/api/deleteTenant/:id` | ✅ |
+
+Tenant form fields: `name, email, phone, mobile, dob, notes, propertyDetailsId, unitName, tenancyStartDate, generatePaymentScheduleFor (3/6/12/24 months), rentPayment, paymentFrequency (Weekly|Bi-Weekly|Four-Weekly|Monthly|Quarterly|4 Months|6 Months|Annually|Free), firstPaymentDate, rentReviewFrequency, rentReviewDate, guarantorContactDetails, depositScheme (TDS|DPS|Mydeposits|Zerodeposits|FlatFair|SafeDeposits|Other), depositAmount`, plus the Yes/No flags `guarantor, inventoryUndertaken, legionellaInspectionRequired, rollingTenancy`.
+
 | Method | Path |
 |---|---|
-| GET | `/api/getClientTenants` |
-| GET/POST/PUT | `/api/tenant`, `/api/tenant/details` |
+| GET/POST/PUT | `/api/tenant`, `/api/tenant/details` (tenant-portal side) |
 | GET | `/api/getRentCollection/:DD-MM-YYYY/:DD-MM-YYYY` returns `[{ tenantsId, dueDate, expected, transactionsInfo, tenant:{_id,name,propertyDetailsId} }]` |
 | GET | `/api/tenant/paymentSchedule/:…` |
 | POST | `/api/tenancyAgreement/:id` (enc) |
@@ -139,11 +148,22 @@ Constant `a = "/api/communications"`.
 | GET | `/api/communications?type=&skip=&limit=` | returns `{ communications, hasMore }`, page through it with skip/limit=100 |
 | GET | `/api/communications/:id?type=` | |
 | GET | `/api/communications/maintenanceTypes` | |
-| POST | `/api/communications` | enc JSON, or multipart when files are included |
-| PUT | `/api/communications/:id` | enc |
-| DELETE | `/api/communications/:id` | |
+| POST | `/api/communications` | ✅ enc `{ propertyDetailsId, tenant:[tenantIds], shared:false, summary, description, status:"open", type:"maintenanceReport", maintenanceType }`. Returns **a one-element array**, and status `201` |
+| PUT | `/api/communications/:id` | ✅ enc partial, e.g. `{ status:"open"\|"closed" }` or `{ archived:true }` |
+| DELETE | `/api/communications/:id` | ✅ deleting a property also deletes its reports |
 | DELETE | `/api/communications/:id/files/:fileId` | |
-| POST | `/api/communications/:id/message` | multipart |
+| POST | `/api/communications/:id/message` | ✅ multipart: `type` (`"note"` = internal, `"message"` = reply visible to the tenant), `message`, `deferUpload:"true"`, optional `file` (repeatable) |
+
+Types: `maintenanceReport`, `conversation`. Maintenance types (`maintenanceType`): Air-conditioning, Heating and boiler, Electricity, Internet, Lighting, Plumbing, Water or leaks, Basin, Bathroom and Toilet, Laundry, Alarms and smoke detectors, Security camera system maintenance, Intercom, Doors and locks, Pests/Vermin, Floors walls and ceilings, Structural Issues, Windows, Furniture, Kitchen, Appliances, Mold, Cleaning, Carpentry, Exterior Maintenance, Roof, Garden, Garage, Shared facilities, Bike storage, Bin storage, Chimney, Stairs, Other.
+
+## Tasks and alerts ("opportunities")
+
+Read from `getUserById.opportunities`. Each item has a `category`: `task` (custom tasks, plus generated ones such as `MISSING_DUE_DATES` and `NO_TENANTS`) or `alert` (such as `Payment Overdue`, with `propertyId`, `tenantsId` and `paymentAmount`).
+
+| Method | Path | Body |
+|---|---|---|
+| POST | `/api/opportunities` | ✅ enc `{ subject, description, expiry_date (ISO), propertyId?, level:"client", category:"task", type:"CUSTOM_TASK", clientId:<clientDetailsId> }` |
+| PUT | `/api/opportunities/:id` | ✅ enc partial. Status values: `"active"`, `"inActive"` (completed), `"inActiveDeleted"` (deleted; the record is kept). ⚠️ returns 200 even for unknown ids |
 
 ## Email
 

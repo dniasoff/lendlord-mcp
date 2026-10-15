@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.env
+.env.*
+.playwright-mcp
+captures
+.beads
+.agents
+.claude
+.codex
+.cursor
+test
+docs

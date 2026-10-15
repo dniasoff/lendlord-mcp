@@ -3,13 +3,12 @@
   "version": "0.1.0",
   "description": "MCP server for managing a Lendlord landlord account with AI agents",
   "main": "dist/index.js",
-  "directories": {
-    "doc": "docs"
-  },
   "scripts": {
     "test": "vitest run",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "prepare": "tsc"
   },
   "type": "module",
   "bin": {
@@ -19,7 +18,9 @@
     "node": ">=20"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "docs"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
@@ -29,5 +30,21 @@
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dniasoff/lendlord-mcp.git"
+  },
+  "homepage": "https://github.com/dniasoff/lendlord-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/dniasoff/lendlord-mcp/issues"
+  },
+  "mcpName": "io.github.dniasoff/lendlord-mcp",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "lendlord",
+    "landlord",
+    "property-management"
+  ]
 }

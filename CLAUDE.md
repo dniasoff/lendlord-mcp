@@ -76,7 +76,8 @@ TypeScript MCP server wrapping Lendlord's private web API (see README.md, docs/a
 - `src/client.ts`: cookie session, login + TOTP 2FA, re-login on 401, encrypted JSON / multipart requests.
 - `src/lendlord.ts`: typed views and a short cache over `getUserById` (the master payload).
 - `src/guard.ts`: write confirmation, once per MCP session.
-- `src/tools.ts`: MCP tool registrations. `src/server.ts`: one McpServer per session. `src/index.ts`: stdio / Streamable HTTP entry.
+- `src/tools.ts`: read tools + `lendlord_request`. `src/write-tools.ts`: property/document writes. `src/more-tools.ts`: tenants, communications, tasks, document linking, email filing (`find_property`, `file_email`). `src/schema.ts`: captured field lists and document slots.
+- `src/server.ts`: one McpServer per session. `src/index.ts`: stdio / Streamable HTTP entry (bearer auth, `/health`).
 
 ## Conventions & Patterns
 
