@@ -16,9 +16,24 @@
       "environmentVariables": [
         { "name": "LENDLORD_EMAIL", "description": "Lendlord login email", "isRequired": true, "isSecret": false },
         { "name": "LENDLORD_PASSWORD", "description": "Lendlord password", "isRequired": true, "isSecret": true },
-        { "name": "LENDLORD_TOTP_SECRET", "description": "Base32 TOTP secret if 2FA is enabled", "isRequired": false, "isSecret": true },
-        { "name": "LENDLORD_READ_ONLY", "description": "true disables all write tools", "isRequired": false, "isSecret": false },
-        { "name": "LENDLORD_AUTO_CONFIRM", "description": "true skips the once-per-session write confirmation", "isRequired": false, "isSecret": false }
+        {
+          "name": "LENDLORD_TOTP_SECRET",
+          "description": "Base32 TOTP secret if 2FA is enabled",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "LENDLORD_READ_ONLY",
+          "description": "true disables all write tools",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "LENDLORD_AUTO_CONFIRM",
+          "description": "true skips the once-per-session write confirmation",
+          "isRequired": false,
+          "isSecret": false
+        }
       ]
     }
   ]

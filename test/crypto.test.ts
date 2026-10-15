@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decrypt, encrypt, isEncrypted, parseChunkFiles } from "../src/crypto.js";
 import { totp } from "../src/client.js";
+import { decrypt, encrypt, isEncrypted, parseChunkFiles } from "../src/crypto.js";
 
 const KEY = "0123456789abcdef0123456789abcdef"; // test key, not Lendlord's
 

@@ -23,7 +23,10 @@ export class WriteGuard {
 
   check(action: string, confirm: boolean | undefined): GuardResult {
     if (this.config.readOnly) {
-      return { ok: false, message: `Refused: "${action}" changes Lendlord data and this server runs with LENDLORD_READ_ONLY=true.` };
+      return {
+        ok: false,
+        message: `Refused: "${action}" changes Lendlord data and this server runs with LENDLORD_READ_ONLY=true.`,
+      };
     }
     if (this.confirmed) return { ok: true };
     if (confirm) {

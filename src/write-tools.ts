@@ -4,8 +4,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { LendlordDocument, PropertyDetails } from "./lendlord.js";
-import { DATE_FIELD, EDITABLE_PROPERTY_FIELDS, PROPERTY_DOCUMENT_SLOTS, isComputedField } from "./schema.js";
-import { type ToolContext, fail, json, safe } from "./tools.js";
+import { DATE_FIELD, EDITABLE_PROPERTY_FIELDS, isComputedField, PROPERTY_DOCUMENT_SLOTS } from "./schema.js";
+import { fail, json, safe, type ToolContext } from "./tools.js";
 
 const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: true } as const;
 const DESTRUCTIVE = { readOnlyHint: false, destructiveHint: true, openWorldHint: true } as const;
@@ -14,11 +14,23 @@ const fieldValue = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 export const MIME: Record<string, string> = {
-  ".pdf": "application/pdf", ".txt": "text/plain", ".csv": "text/csv", ".eml": "message/rfc822",
-  ".doc": "application/msword", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".xls": "application/vnd.ms-excel", ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp",
-  ".heic": "image/heic", ".tiff": "image/tiff", ".mp4": "video/mp4", ".mov": "video/quicktime",
+  ".pdf": "application/pdf",
+  ".txt": "text/plain",
+  ".csv": "text/csv",
+  ".eml": "message/rfc822",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".heic": "image/heic",
+  ".tiff": "image/tiff",
+  ".mp4": "video/mp4",
+  ".mov": "video/quicktime",
 };
 
 /** Lendlord stores dates as ISO timestamps; accept YYYY-MM-DD from agents. */
@@ -58,7 +70,8 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
     "list_property_fields",
     {
       title: "List property fields",
-      description: "Field names accepted by add_property / update_property, and the document slot keys for upload_document.",
+      description:
+        "Field names accepted by add_property / update_property, and the document slot keys for upload_document.",
       annotations: { readOnlyHint: true },
     },
     safe(async () => json({ propertyFields: EDITABLE_PROPERTY_FIELDS, documentSlots: PROPERTY_DOCUMENT_SLOTS })),
@@ -69,7 +82,7 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
     {
       title: "Add property",
       description:
-        "Create a property. `fields` uses Lendlord field names (see list_property_fields), e.g. {\"Property Value\": 150000, \"Date of Purchase\": \"2024-05-01\"}. Owned by the first applicant unless ownerApplicantId is given.",
+        'Create a property. `fields` uses Lendlord field names (see list_property_fields), e.g. {"Property Value": 150000, "Date of Purchase": "2024-05-01"}. Owned by the first applicant unless ownerApplicantId is given.',
       inputSchema: {
         address: z.string().min(1),
         postcode: z.string().optional(),
@@ -122,7 +135,8 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
     },
     safe(async ({ propertyId, fields, confirm: ok }) => {
       const computed = Object.keys(fields).filter(isComputedField);
-      if (computed.length) return fail(`These fields are calculated by Lendlord and can't be set: ${computed.join(", ")}`);
+      if (computed.length)
+        return fail(`These fields are calculated by Lendlord and can't be set: ${computed.join(", ")}`);
       const blocked = gate(`update property ${propertyId}`, ok);
       if (blocked) return blocked;
       const current = await lendlord.property(propertyId);
@@ -134,7 +148,10 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
       lendlord.invalidate();
       const updated = res.propertiesUpdated?.[0];
       if (!updated) return fail("Lendlord did not confirm the update.");
-      return json({ id: updated._id, changed: Object.fromEntries(Object.keys(fields).map((k) => [k, updated.property[k] ?? null])) });
+      return json({
+        id: updated._id,
+        changed: Object.fromEntries(Object.keys(fields).map((k) => [k, updated.property[k] ?? null])),
+      });
     }),
   );
 
@@ -249,7 +266,13 @@ export async function uploadDocument(
   return client.upload<LendlordDocument>("/api/documents", form);
 }
 
-async function loadFile(args: { filePath?: string; url?: string; base64?: string; fileName?: string; mimeType?: string }): Promise<UploadFile> {
+async function loadFile(args: {
+  filePath?: string;
+  url?: string;
+  base64?: string;
+  fileName?: string;
+  mimeType?: string;
+}): Promise<UploadFile> {
   let data: Uint8Array;
   let name = args.fileName;
   let type = args.mimeType;
@@ -264,7 +287,7 @@ async function loadFile(args: { filePath?: string; url?: string; base64?: string
     type ??= res.headers.get("content-type")?.split(";")[0];
   } else {
     if (!args.fileName) throw new Error("fileName is required with base64");
-    data = Buffer.from(args.base64!, "base64");
+    data = Buffer.from(args.base64 ?? "", "base64");
   }
   if (data.byteLength > MAX_UPLOAD_BYTES) throw new Error("File is larger than 25 MB");
   name ??= "upload";

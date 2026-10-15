@@ -117,7 +117,7 @@ export function summariseProperty(p: PropertyDetails) {
     status: p.status,
     address: f["Property Address"],
     postcode: f["Property Postcode"],
-    ownership: f["Ownership"],
+    ownership: f.Ownership,
     type: f["Property Type"],
     bedrooms: f["Number of Bedrooms"],
     value: f["Property Value"],
@@ -125,7 +125,7 @@ export function summariseProperty(p: PropertyDetails) {
     purchaseDate: f["Date of Purchase"],
     monthlyRent: f["Rental Monthly Income"],
     mortgageBalance: f["Current Mortgage Balance"],
-    lender: f["Lender"],
+    lender: f.Lender,
     rateExpiry: f["Rate Expiry Date"],
   };
 }

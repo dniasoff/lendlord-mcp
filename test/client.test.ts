@@ -46,7 +46,10 @@ describe("LendlordClient", () => {
     const client = new LendlordClient({ email: "a@b.c", password: "pw", fetch: impl });
     const user = await client.get<{ portfolioDetails: { _id: string }[] }>("/api/getUserById");
     expect(user.portfolioDetails[0]!._id).toBe("p1");
-    expect(calls[0]).toMatchObject({ path: "/api/loginUser", body: { email: "a@b.c", password: "pw", keepMeLoggedIn: true } });
+    expect(calls[0]).toMatchObject({
+      path: "/api/loginUser",
+      body: { email: "a@b.c", password: "pw", keepMeLoggedIn: true },
+    });
     expect(calls.at(-1)!.cookie).toBe("sid=s1");
   });
 

@@ -64,6 +64,8 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 npm install
 npm run build        # tsc -> dist/
 npm run typecheck
+npm run lint         # biome (lint + format check, warnings fail)
+npm run check        # lint + typecheck + test
 npm test             # vitest, offline (fake Lendlord server)
 LENDLORD_LIVE_TESTS=1 node --env-file=.env node_modules/vitest/vitest.mjs run   # live, read-only
 ```
@@ -85,3 +87,5 @@ TypeScript MCP server wrapping Lendlord's private web API (see README.md, docs/a
 - Write tools ship only after: a UI capture of the real request, a live round-trip on a throwaway test property, and an opt-in live test.
 - Never commit captured traffic or real portfolio data (`.playwright-mcp/`, `captures/`, `.env` are ignored).
 - Tool handlers return API failures as `isError` results via `safe()`, not as thrown protocol errors.
+- Commit messages and PR titles use Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `ci:`, `test:`, `refactor:`; `!` for breaking). release-please derives versions and the CHANGELOG from them, so never edit versions or CHANGELOG.md by hand.
+- Run `npm run check` before committing; `npm run format` applies Biome formatting.

@@ -3,7 +3,13 @@ import { mergeProperty, normaliseFields } from "../src/write-tools.js";
 
 describe("normaliseFields", () => {
   it("turns YYYY-MM-DD into ISO timestamps for date fields only", () => {
-    expect(normaliseFields({ "EPC Due Date": "2030-01-01", "Utility Supplier Gas Contract End": "2027-02-03", Lender: "2030-01-01" })).toEqual({
+    expect(
+      normaliseFields({
+        "EPC Due Date": "2030-01-01",
+        "Utility Supplier Gas Contract End": "2027-02-03",
+        Lender: "2030-01-01",
+      }),
+    ).toEqual({
       "EPC Due Date": "2030-01-01T00:00:00.000Z",
       "Utility Supplier Gas Contract End": "2027-02-03T00:00:00.000Z",
       Lender: "2030-01-01",
@@ -17,7 +23,15 @@ describe("mergeProperty", () => {
     status: "active",
     clientDetailsId: "c1",
     applicants: ["a1"],
-    property: { "Property Address": "1 Test St", Lender: "Old Bank", "Property Value": 100, LTV: 0.5, Equity: 50, "Annual ROI": 3, "10Y IRR": 1 },
+    property: {
+      "Property Address": "1 Test St",
+      Lender: "Old Bank",
+      "Property Value": 100,
+      LTV: 0.5,
+      Equity: 50,
+      "Annual ROI": 3,
+      "10Y IRR": 1,
+    },
   };
 
   it("keeps existing editable fields, applies changes, drops computed fields", () => {
@@ -28,7 +42,12 @@ describe("mergeProperty", () => {
       clientDetailsId: "c1",
       applicants: ["a1"],
       assumptions: {},
-      property: { "Property Address": "1 Test St", Lender: "Old Bank", "Property Value": 200, "Rate Expiry Date": "2028-06-30T00:00:00.000Z" },
+      property: {
+        "Property Address": "1 Test St",
+        Lender: "Old Bank",
+        "Property Value": 200,
+        "Rate Expiry Date": "2028-06-30T00:00:00.000Z",
+      },
     });
   });
 

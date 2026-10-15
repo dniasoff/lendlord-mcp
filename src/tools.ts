@@ -14,7 +14,10 @@ export const json = (value: unknown): CallToolResult => ({
   content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
 });
 
-export const fail = (message: string): CallToolResult => ({ content: [{ type: "text", text: message }], isError: true });
+export const fail = (message: string): CallToolResult => ({
+  content: [{ type: "text", text: message }],
+  isError: true,
+});
 
 /** Wrap a handler so API failures come back as tool errors instead of protocol errors. */
 export function safe<A>(fn: (args: A) => Promise<CallToolResult>) {
@@ -164,7 +167,10 @@ export function registerTools(server: McpServer, { lendlord, guard }: ToolContex
         lendlord.client.get<{ data?: unknown }>("/api/pnlData"),
         lendlord.client.get<{ _id: string; name: string; type: string }[]>("/api/pnlCategory"),
       ]);
-      return json({ byProperty: pnl?.data ?? {}, categories: categories.map(({ _id, name, type }) => ({ id: _id, name, type })) });
+      return json({
+        byProperty: pnl?.data ?? {},
+        categories: categories.map(({ _id, name, type }) => ({ id: _id, name, type })),
+      });
     }),
   );
 
@@ -180,7 +186,9 @@ export function registerTools(server: McpServer, { lendlord, guard }: ToolContex
       },
       annotations: READ,
     },
-    safe(async ({ type, limit, skip }) => json(await lendlord.client.get("/api/communications", { type, limit, skip }))),
+    safe(async ({ type, limit, skip }) =>
+      json(await lendlord.client.get("/api/communications", { type, limit, skip })),
+    ),
   );
 
   server.registerTool(

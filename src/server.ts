@@ -1,11 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { type GuardConfig, WriteGuard } from "./guard.js";
 import type { Lendlord } from "./lendlord.js";
-import { registerTools } from "./tools.js";
 import { registerMoreTools } from "./more-tools.js";
+import { registerTools } from "./tools.js";
+import { VERSION } from "./version.js";
 import { registerWriteTools } from "./write-tools.js";
-
-export const VERSION = "0.1.0";
 
 /** One McpServer per MCP session, so write confirmation is scoped to that session. */
 export function createSessionServer(lendlord: Lendlord, guardConfig: GuardConfig): McpServer {

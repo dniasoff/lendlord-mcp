@@ -30,16 +30,23 @@ export function isEncrypted(text: string): boolean {
 type Fetch = typeof fetch;
 
 /** Find the payload key by scanning the app's JS bundles: entry scripts first, then lazy chunks. */
-export async function discoverKey(baseUrl: string, fetchImpl: Fetch = fetch): Promise<{ key: string; runtime: string }> {
+export async function discoverKey(
+  baseUrl: string,
+  fetchImpl: Fetch = fetch,
+): Promise<{ key: string; runtime: string }> {
   const html = await (await fetchImpl(`${baseUrl}/login`)).text();
-  const scripts = [...html.matchAll(/src="\/?([\w.-]+\.bundle\.js)"/g)].map((m) => m[1]!);
+  const scripts = [...html.matchAll(/src="\/?([\w.-]+\.bundle\.js)"/g)].map((m) => m[1]);
   const runtime = scripts.find((s) => s.startsWith("runtime.")) ?? "";
 
   const tryScripts = async (names: string[]): Promise<string | undefined> => {
     for (let i = 0; i < names.length; i += 24) {
       const batch = names.slice(i, i + 24);
       const bodies = await Promise.all(
-        batch.map((n) => fetchImpl(`${baseUrl}/${n}`).then((r) => (r.ok ? r.text() : "")).catch(() => "")),
+        batch.map((n) =>
+          fetchImpl(`${baseUrl}/${n}`)
+            .then((r) => (r.ok ? r.text() : ""))
+            .catch(() => ""),
+        ),
       );
       for (const body of bodies) {
         const match = KEY_PATTERN.exec(body);
@@ -67,10 +74,13 @@ export function parseChunkFiles(runtimeJs: string): string[] {
   const start = runtimeJs.lastIndexOf('+"."+{', end);
   const hashes = [...runtimeJs.slice(start, end + 1).matchAll(/(\d+):"([0-9a-f]{20})"/g)];
   const names = new Map(
-    [...runtimeJs.slice(Math.max(0, start - 4000), start).matchAll(/(\d+):"([A-Za-z][\w.]*)"/g)].map((m) => [m[1]!, m[2]!]),
+    [...runtimeJs.slice(Math.max(0, start - 4000), start).matchAll(/(\d+):"([A-Za-z][\w.]*)"/g)].map((m) => [
+      m[1],
+      m[2],
+    ]),
   );
   return hashes
-    .map(([, id, hash]) => ({ name: names.get(id!) ?? id!, hash: hash! }))
+    .map(([, id, hash]) => ({ name: names.get(id) ?? id, hash }))
     .filter(({ name }) => !name.startsWith("vendor.") && !name.startsWith("reactPlayer"))
     .map(({ name, hash }) => `${name}.${hash}.bundle.js`);
 }

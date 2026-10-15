@@ -8,6 +8,12 @@ import { LendlordClient } from "./client.js";
 import type { GuardConfig } from "./guard.js";
 import { Lendlord } from "./lendlord.js";
 import { createSessionServer } from "./server.js";
+import { VERSION } from "./version.js";
+
+if (process.argv.includes("--version") || process.argv.includes("-v")) {
+  console.log(VERSION);
+  process.exit(0);
+}
 
 const env = process.env;
 const lendlord = new Lendlord(LendlordClient.fromEnv(env));
@@ -33,7 +39,7 @@ async function serveHttp(): Promise<void> {
 
   const http = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
-    if (url.pathname === "/health") return void res.writeHead(200).end("ok");
+    if (url.pathname === "/health") return void res.writeHead(200).end(`ok ${VERSION}`);
     if (url.pathname !== "/mcp") return void res.writeHead(404).end();
     if (!authorised(req)) return void res.writeHead(401, { "www-authenticate": "Bearer" }).end();
 

@@ -59,7 +59,7 @@ Without Docker: `MCP_TRANSPORT=http MCP_AUTH_TOKEN=... npx -y github:dniasoff/le
 |---|---|---|
 | Account | `get_account` (user, owners, plan limits) | |
 | Properties | `list_properties`, `get_property`, `list_property_fields`, `compliance_overview` | `add_property`, `update_property`, `delete_property` |
-| Documents | `list_documents` | `upload_document` (path / URL / base64, into a slot like `gasCertificate` or a custom key), `rename_document`, `link_document`, `delete_document` |
+| Documents | `list_documents` | `upload_document` (path / URL / base64, into a slot like `gasCertificate` or a custom key), `rename_document`, `link_document`, `send_document` (emails it), `delete_document` |
 | Email filing | `find_property` | `file_email` |
 | Tenants | `list_tenants`, `get_tenant` | `add_tenant`, `update_tenant`, `delete_tenant` |
 | Maintenance | `list_communications`, `get_communication` | `create_maintenance_report`, `update_communication`, `add_communication_message`, `delete_communication` |
@@ -119,4 +119,26 @@ The write test creates and deletes its own `ZZ TEST lendlord-mcp …` property, 
 
 **Adding a tool:** capture the real request in the web app first, implement it, then add a step to `test/live-write.test.ts` that reads the result back. Never commit captures: `.playwright-mcp/`, `captures/` and `.env` are git-ignored.
 
+Before pushing, run `npm run check` (Biome lint and format check, typecheck, tests). `npm run format` fixes formatting. CI runs the same checks plus tests on Node 20, 22 and 24, a build and package-contents check, a dependency audit and a Docker smoke test.
+
 Issues and the roadmap are tracked with [Beads](https://github.com/gastownhall/beads) (`bd ready`).
+
+## Versioning and releases
+
+The project uses [Semantic Versioning](https://semver.org/), driven by [Conventional Commits](https://www.conventionalcommits.org/):
+
+| Commit / PR title | Release |
+|---|---|
+| `fix: …` | patch (0.1.0 → 0.1.1) |
+| `feat: …` | minor (0.1.0 → 0.2.0) |
+| `feat!: …` or a `BREAKING CHANGE:` footer | major after 1.0. Before 1.0 it bumps minor |
+| `docs:`, `chore:`, `ci:`, `test:`, `refactor:` | no release on their own |
+
+[release-please](https://github.com/googleapis/release-please) keeps a **release PR** open with the next version and CHANGELOG entries. Merging it:
+
+1. bumps `package.json`, `server.json` and `CHANGELOG.md`, and tags `vX.Y.Z`;
+2. creates the GitHub release;
+3. publishes `ghcr.io/dniasoff/lendlord-mcp:X.Y.Z` (and `:latest`);
+4. publishes to npm, if an `NPM_TOKEN` repository secret is set.
+
+To pin a version, use `npx -y github:dniasoff/lendlord-mcp#v0.1.0` or the matching Docker tag. `lendlord-mcp --version` and `GET /health` report the running version.

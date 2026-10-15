@@ -103,7 +103,7 @@ Constant `o = "/api/documents"`.
 | PATCH | `/api/documents/:docId/:entityType/:entityId` | enc JSON, edits the per-entity link |
 | DELETE | `/api/documents/:docId/:entityType/:entityId` | ✅ verified live. Unlinks the document, and deletes it when that was its only link |
 | POST | `/api/documents/copy` | ✅ enc `{ entities, key, path }`. Creates a **new copy** of the document (new id) on the target entities, named `<timestamp>_<key>.<ext>`, so rename it afterwards |
-| POST | `/api/documents/:id/send` | enc `{ email, subject, message, cc, replyTo }`, emails the document (not yet exposed as a tool) |
+| POST | `/api/documents/:id/send` | enc `{ email, subject, message, cc, replyTo }`, ✅ emails the document with the file attached. `cc` is an array of addresses; `replyTo` defaults to the account email |
 | GET | `/api/getSignedUrl?download=&url=&fileName=` | S3 signed download URL |
 | POST | `/api/general/uploadTempFile` | multipart `key`, `file`, `name` |
 | POST | `/api/openAI/extractDataFromCertificate` | multipart `{ file, certificateType }` |

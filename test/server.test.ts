@@ -13,8 +13,24 @@ beforeAll(() => {
 });
 
 const PROPERTIES = [
-  { _id: "p1", status: "active", property: { "Property Address": "1 Test Street", "Property Postcode": "AB1 2CD", "EPC Due Date": "2026-11-01T00:00:00.000Z" } },
-  { _id: "p2", status: "active", property: { "Property Address": "2 Demo Road", "Property Postcode": "ZZ9 9ZZ", "Landlord Insurance End Date": "2026-01-01T00:00:00.000Z" } },
+  {
+    _id: "p1",
+    status: "active",
+    property: {
+      "Property Address": "1 Test Street",
+      "Property Postcode": "AB1 2CD",
+      "EPC Due Date": "2026-11-01T00:00:00.000Z",
+    },
+  },
+  {
+    _id: "p2",
+    status: "active",
+    property: {
+      "Property Address": "2 Demo Road",
+      "Property Postcode": "ZZ9 9ZZ",
+      "Landlord Insurance End Date": "2026-01-01T00:00:00.000Z",
+    },
+  },
 ];
 
 function fakeLendlord() {
@@ -51,7 +67,7 @@ async function connect(lendlord: Lendlord, guard = { readOnly: false, autoConfir
   return client;
 }
 
-const text = (r: unknown) => ((r as { content: { text: string }[] }).content[0]!.text);
+const text = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
 const write = (n: number, confirm?: boolean) => ({
   name: "lendlord_request",
   arguments: { method: "POST", path: "/api/updateProperty", body: { n }, ...(confirm ? { confirm } : {}) },
@@ -95,7 +111,10 @@ describe("MCP server", () => {
 
   it("blocks admin endpoints", async () => {
     const client = await connect(fakeLendlord().lendlord);
-    const res = await client.callTool({ name: "lendlord_request", arguments: { method: "GET", path: "/api/admin/coupons" } });
+    const res = await client.callTool({
+      name: "lendlord_request",
+      arguments: { method: "GET", path: "/api/admin/coupons" },
+    });
     expect(text(res)).toMatch(/blocked/);
   });
 });

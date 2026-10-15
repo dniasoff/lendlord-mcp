@@ -3,7 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { Communication, LendlordDocument, PropertyDetails, Tenant } from "./lendlord.js";
-import { type ToolContext, fail, json, safe } from "./tools.js";
+import { fail, json, safe, type ToolContext } from "./tools.js";
 import { mimeFor, uploadDocument } from "./write-tools.js";
 
 const READ = { readOnlyHint: true, openWorldHint: true } as const;
@@ -13,11 +13,40 @@ const confirm = z.boolean().optional().describe("Set true once the user has appr
 const fieldValue = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 
 export const MAINTENANCE_TYPES = [
-  "Air-conditioning", "Heating and boiler", "Electricity", "Internet", "Lighting",
-  "Plumbing", "Water or leaks", "Basin", "Bathroom and Toilet", "Laundry",
-  "Alarms and smoke detectors", "Security camera system maintenance", "Intercom", "Doors and locks", "Pests/Vermin",
-  "Floors walls and ceilings", "Structural Issues", "Windows", "Furniture", "Kitchen", "Appliances", "Mold", "Cleaning", "Carpentry",
-  "Exterior Maintenance", "Roof", "Garden", "Garage", "Shared facilities", "Bike storage", "Bin storage", "Chimney", "Stairs", "Other",
+  "Air-conditioning",
+  "Heating and boiler",
+  "Electricity",
+  "Internet",
+  "Lighting",
+  "Plumbing",
+  "Water or leaks",
+  "Basin",
+  "Bathroom and Toilet",
+  "Laundry",
+  "Alarms and smoke detectors",
+  "Security camera system maintenance",
+  "Intercom",
+  "Doors and locks",
+  "Pests/Vermin",
+  "Floors walls and ceilings",
+  "Structural Issues",
+  "Windows",
+  "Furniture",
+  "Kitchen",
+  "Appliances",
+  "Mold",
+  "Cleaning",
+  "Carpentry",
+  "Exterior Maintenance",
+  "Roof",
+  "Garden",
+  "Garage",
+  "Shared facilities",
+  "Bike storage",
+  "Bin storage",
+  "Chimney",
+  "Stairs",
+  "Other",
 ] as const;
 
 const TENANT_DATE_FIELDS = /^(dob|tenancyStartDate|tenancyEndDate|firstPaymentDate|rentReviewDate)$/;
@@ -26,7 +55,8 @@ const TENANT_DATE_FIELDS = /^(dob|tenancyStartDate|tenancyEndDate|firstPaymentDa
 export function normaliseTenantFields(fields: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(fields)) {
-    out[k] = TENANT_DATE_FIELDS.test(k) && typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v;
+    out[k] =
+      TENANT_DATE_FIELDS.test(k) && typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v;
   }
   return out;
 }
@@ -62,7 +92,11 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
       annotations: READ,
     },
     safe(async ({ propertyId }) =>
-      json((await lendlord.tenants()).filter((t) => !propertyId || t.propertyDetailsId === propertyId).map(summariseTenant)),
+      json(
+        (await lendlord.tenants())
+          .filter((t) => !propertyId || t.propertyDetailsId === propertyId)
+          .map(summariseTenant),
+      ),
     ),
   );
 
@@ -92,7 +126,17 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
         email: z.string().email().optional(),
         rentPayment: z.number().optional().describe("Rent amount per payment"),
         paymentFrequency: z
-          .enum(["Weekly", "Bi-Weekly", "Four-Weekly", "Monthly", "Quarterly", "4 Months", "6 Months", "Annually", "Free"])
+          .enum([
+            "Weekly",
+            "Bi-Weekly",
+            "Four-Weekly",
+            "Monthly",
+            "Quarterly",
+            "4 Months",
+            "6 Months",
+            "Annually",
+            "Free",
+          ])
           .optional(),
         status: z.enum(["Actual", "Prospect"]).default("Actual"),
         fields: z.record(z.string(), fieldValue).optional(),
@@ -125,7 +169,8 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
     "update_tenant",
     {
       title: "Update tenant",
-      description: "Change fields on a tenant (same field names as add_tenant). Only the fields you pass change; null clears.",
+      description:
+        "Change fields on a tenant (same field names as add_tenant). Only the fields you pass change; null clears.",
       inputSchema: { tenantId: z.string(), fields: z.record(z.string(), fieldValue), confirm },
       annotations: WRITE,
     },
@@ -140,7 +185,9 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
       }
       const updated = await lendlord.client.put<Tenant>(`/api/updateTenant/${tenantId}`, { tenant: merged });
       lendlord.invalidate();
-      return json(updated && typeof updated === "object" && "_id" in updated ? summariseTenant(updated) : { updated: tenantId });
+      return json(
+        updated && typeof updated === "object" && "_id" in updated ? summariseTenant(updated) : { updated: tenantId },
+      );
     }),
   );
 
@@ -169,10 +216,15 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
     {
       title: "Get communication",
       description: "One maintenance report or conversation, including its messages.",
-      inputSchema: { communicationId: z.string(), type: z.enum(["maintenanceReport", "conversation"]).default("maintenanceReport") },
+      inputSchema: {
+        communicationId: z.string(),
+        type: z.enum(["maintenanceReport", "conversation"]).default("maintenanceReport"),
+      },
       annotations: READ,
     },
-    safe(async ({ communicationId, type }) => json(await lendlord.client.get(`/api/communications/${communicationId}`, { type }))),
+    safe(async ({ communicationId, type }) =>
+      json(await lendlord.client.get(`/api/communications/${communicationId}`, { type })),
+    ),
   );
 
   server.registerTool(
@@ -213,7 +265,8 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
     "update_communication",
     {
       title: "Update communication",
-      description: "Change a maintenance report/conversation: status (open|closed), archived, summary, description, maintenanceType, shared.",
+      description:
+        "Change a maintenance report/conversation: status (open|closed), archived, summary, description, maintenanceType, shared.",
       inputSchema: {
         communicationId: z.string(),
         status: z.enum(["open", "closed"]).optional(),
@@ -250,7 +303,10 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
       annotations: WRITE,
     },
     safe(async ({ communicationId, message, kind, confirm: ok }) => {
-      const blocked = gate(kind === "message" ? `reply to tenant on ${communicationId}` : `add note to ${communicationId}`, ok);
+      const blocked = gate(
+        kind === "message" ? `reply to tenant on ${communicationId}` : `add note to ${communicationId}`,
+        ok,
+      );
       if (blocked) return blocked;
       const form = new FormData();
       form.append("type", kind);
@@ -265,7 +321,8 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
     "delete_communication",
     {
       title: "Delete communication",
-      description: "Permanently delete a maintenance report/conversation (use update_communication archived:true to keep history).",
+      description:
+        "Permanently delete a maintenance report/conversation (use update_communication archived:true to keep history).",
       inputSchema: { communicationId: z.string(), confirm },
       annotations: DESTRUCTIVE,
     },
@@ -358,7 +415,10 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
         status: z.enum(["active", "completed", "deleted"]).optional(),
         subject: z.string().optional(),
         description: z.string().optional(),
-        dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        dueDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
         confirm,
       },
       annotations: WRITE,
@@ -413,6 +473,40 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
     }),
   );
 
+  server.registerTool(
+    "send_document",
+    {
+      title: "Send document by email",
+      description:
+        "Email a stored document to someone (Lendlord sends it with the file attached). Replies go to the account's email unless replyTo is given. This sends a real email.",
+      inputSchema: {
+        documentId: z.string(),
+        to: z.string().email(),
+        subject: z.string().min(1),
+        message: z.string().default(""),
+        cc: z.array(z.string().email()).default([]),
+        replyTo: z.string().email().optional(),
+        confirm,
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    safe(async ({ documentId, to, subject, message, cc, replyTo, confirm: ok }) => {
+      const doc = (await lendlord.documents()).find((d) => d._id === documentId);
+      if (!doc) return fail(`No document with id ${documentId}.`);
+      const blocked = gate(`email "${doc.name}" to ${to}`, ok);
+      if (blocked) return blocked;
+      const user = await lendlord.user();
+      await lendlord.client.post(`/api/documents/${documentId}/send`, {
+        replyTo: replyTo ?? user.email,
+        email: to,
+        subject,
+        message,
+        cc,
+      });
+      return json({ sent: documentId, name: doc.name, to, cc });
+    }),
+  );
+
   // ---------- Email filing helpers (agents read mail; these file it) ----------
 
   server.registerTool(
@@ -435,7 +529,7 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
     {
       title: "File email to property",
       description:
-        "Store an email (and its attachments) as documents on a property or tenant. Pass either emlBase64 (raw RFC 822 message) or subject/from/to/date/text/html. Attachments are uploaded as separate documents named \"<date> - <subject> - <file>\".",
+        'Store an email (and its attachments) as documents on a property or tenant. Pass either emlBase64 (raw RFC 822 message) or subject/from/to/date/text/html. Attachments are uploaded as separate documents named "<date> - <subject> - <file>".',
       inputSchema: {
         entityId: z.string().describe("Property id (from find_property) or tenant id"),
         entityType: z.enum(["property", "tenant"]).default("property"),
@@ -454,14 +548,23 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
       annotations: WRITE,
     },
     safe(async (args) => {
-      if (!args.emlBase64 && !args.subject && !args.text && !args.html) return fail("Provide emlBase64 or the email's subject/text/html.");
-      const blocked = gate(`file email "${args.subject ?? "(raw .eml)"}" to ${args.entityType} ${args.entityId}`, args.confirm);
+      if (!args.emlBase64 && !args.subject && !args.text && !args.html)
+        return fail("Provide emlBase64 or the email's subject/text/html.");
+      const blocked = gate(
+        `file email "${args.subject ?? "(raw .eml)"}" to ${args.entityType} ${args.entityId}`,
+        args.confirm,
+      );
       if (blocked) return blocked;
       const eml = args.emlBase64 ? Buffer.from(args.emlBase64, "base64") : Buffer.from(buildEml(args), "utf8");
       const subject = args.subject ?? headerFrom(eml, "subject") ?? "Email";
       const sent = new Date(args.date ?? headerFrom(eml, "date") ?? Date.now());
-      const day = Number.isNaN(sent.getTime()) ? new Date().toISOString().slice(0, 10) : sent.toISOString().slice(0, 10);
-      const base = `${day} - ${subject}`.replace(/[\\/:*?"<>|]+/g, " ").slice(0, 120).trim();
+      const day = Number.isNaN(sent.getTime())
+        ? new Date().toISOString().slice(0, 10)
+        : sent.toISOString().slice(0, 10);
+      const base = `${day} - ${subject}`
+        .replace(/[\\/:*?"<>|]+/g, " ")
+        .slice(0, 120)
+        .trim();
       const keyBase = `email${day.replace(/-/g, "")}${randomBytes(3).toString("hex")}`;
 
       const target = { entityType: args.entityType, entityId: args.entityId };
@@ -491,12 +594,23 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
 }
 
 function headerFrom(eml: Buffer, name: string): string | undefined {
-  const head = eml.subarray(0, 64 * 1024).toString("utf8").split(/\r?\n\r?\n/)[0] ?? "";
+  const head =
+    eml
+      .subarray(0, 64 * 1024)
+      .toString("utf8")
+      .split(/\r?\n\r?\n/)[0] ?? "";
   const m = new RegExp(`^${name}:\\s*(.*(?:\\r?\\n[ \\t].*)*)`, "im").exec(head);
   return m?.[1]?.replace(/\r?\n[ \t]+/g, " ").trim();
 }
 
-export function buildEml(e: { subject?: string; from?: string; to?: string; date?: string; text?: string; html?: string }): string {
+export function buildEml(e: {
+  subject?: string;
+  from?: string;
+  to?: string;
+  date?: string;
+  text?: string;
+  html?: string;
+}): string {
   const headers = [
     e.from && `From: ${e.from}`,
     e.to && `To: ${e.to}`,
@@ -510,21 +624,57 @@ export function buildEml(e: { subject?: string; from?: string; to?: string; date
       ...headers,
       `Content-Type: multipart/alternative; boundary="${b}"`,
       "",
-      `--${b}`, "Content-Type: text/plain; charset=utf-8", "", e.text,
-      `--${b}`, "Content-Type: text/html; charset=utf-8", "", e.html,
-      `--${b}--`, "",
+      `--${b}`,
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      e.text,
+      `--${b}`,
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      e.html,
+      `--${b}--`,
+      "",
     ].join("\r\n");
   }
-  const html = !e.text && e.html;
-  return [...headers, `Content-Type: text/${html ? "html" : "plain"}; charset=utf-8`, "", html ? e.html! : e.text ?? "", ""].join("\r\n");
+  const htmlOnly = e.text ? undefined : e.html;
+  return [
+    ...headers,
+    `Content-Type: text/${htmlOnly ? "html" : "plain"}; charset=utf-8`,
+    "",
+    htmlOnly ?? e.text ?? "",
+    "",
+  ].join("\r\n");
 }
 
-const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9@.]+/g, " ").trim();
+const norm = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9@.]+/g, " ")
+    .trim();
 const compact = (s: string) => s.toLowerCase().replace(/\s+/g, "");
-const STOP = new Set(["road", "street", "st", "rd", "avenue", "ave", "lane", "the", "upon", "flat", "house", "newcastle", "tyne", "london"]);
+const STOP = new Set([
+  "road",
+  "street",
+  "st",
+  "rd",
+  "avenue",
+  "ave",
+  "lane",
+  "the",
+  "upon",
+  "flat",
+  "house",
+  "newcastle",
+  "tyne",
+  "london",
+]);
 
 /** Score properties against free text. Postcodes and identifiers weigh most; street words least. */
-export function rankProperties(text: string, properties: PropertyDetails[], tenants: { name?: string; email?: string; propertyDetailsId?: string }[]) {
+export function rankProperties(
+  text: string,
+  properties: PropertyDetails[],
+  tenants: { name?: string; email?: string; propertyDetailsId?: string }[],
+) {
   const hay = norm(text);
   const hayCompact = compact(text);
   const words = new Set(hay.split(" "));
@@ -539,7 +689,9 @@ export function rankProperties(text: string, properties: PropertyDetails[], tena
       reasons.push(`postcode ${postcode}`);
     }
     const address = typeof f["Property Address"] === "string" ? (f["Property Address"] as string) : "";
-    const addrWords = norm(address).split(" ").filter((w) => w.length > 1 && !STOP.has(w));
+    const addrWords = norm(address)
+      .split(" ")
+      .filter((w) => w.length > 1 && !STOP.has(w));
     const number = /^\d+[a-z]?/.exec(norm(address))?.[0];
     const street = addrWords.filter((w) => !/^\d/.test(w));
     const hits = street.filter((w) => words.has(w));
@@ -551,7 +703,14 @@ export function rankProperties(text: string, properties: PropertyDetails[], tena
         reasons.push(`house number ${number}`);
       }
     }
-    for (const key of ["Policy Number", "Certificate Number", "Gas Certificate Number", "Mortgage Account Number", "Council Tax Reference Number", "License Number"]) {
+    for (const key of [
+      "Policy Number",
+      "Certificate Number",
+      "Gas Certificate Number",
+      "Mortgage Account Number",
+      "Council Tax Reference Number",
+      "License Number",
+    ]) {
       const v = f[key];
       if (typeof v === "string" && v.length >= 5 && hayCompact.includes(compact(v))) {
         score += 40;

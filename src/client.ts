@@ -114,7 +114,9 @@ export class LendlordClient {
     const me = await this.send<{ passedTwoFA?: boolean }>("GET", "/api/getUserFromCookie");
     if (me?.passedTwoFA === false) {
       if (!this.opts.totpSecret) throw new Error("Account requires 2FA: set LENDLORD_TOTP_SECRET");
-      await this.send("POST", "/api/twoFA/verify", { json: { code: totp(this.opts.totpSecret), keepMeLoggedIn: true } });
+      await this.send("POST", "/api/twoFA/verify", {
+        json: { code: totp(this.opts.totpSecret), keepMeLoggedIn: true },
+      });
     }
   }
 
@@ -165,8 +167,8 @@ export class LendlordClient {
     const list = headers.getSetCookie?.() ?? [];
     for (const raw of list) {
       const [pair] = raw.split(";");
-      const idx = pair!.indexOf("=");
-      if (idx > 0) this.cookies.set(pair!.slice(0, idx).trim(), pair!.slice(idx + 1).trim());
+      const idx = pair.indexOf("=");
+      if (idx > 0) this.cookies.set(pair.slice(0, idx).trim(), pair.slice(idx + 1).trim());
     }
   }
 
@@ -179,7 +181,7 @@ export class LendlordClient {
 }
 
 function looksLikeGarbage(text: string): boolean {
-  // eslint-disable-next-line no-control-regex
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: detecting control bytes is the point (garbled decrypt)
   const control = text.slice(0, 256).match(/[\u0000-\u0008\u000e-\u001f�]/g)?.length ?? 0;
   return control > 2;
 }
@@ -215,7 +217,7 @@ export function totp(secret: string, now = Date.now()): string {
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(Math.floor(now / 1000 / 30)));
   const hmac = createHmac("sha1", keyBytes).update(counter).digest();
-  const offset = hmac[hmac.length - 1]! & 0xf;
+  const offset = (hmac.at(-1) ?? 0) & 0xf;
   const code = (hmac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000;
   return code.toString().padStart(6, "0");
 }

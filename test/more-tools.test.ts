@@ -3,7 +3,14 @@ import { buildEml, normaliseTenantFields, rankProperties } from "../src/more-too
 import { mimeFor } from "../src/write-tools.js";
 
 const props = [
-  { _id: "a", property: { "Property Address": "12 Acacia Avenue, Testtown", "Property Postcode": "AB1 2CD", "Policy Number": "POL-998877" } },
+  {
+    _id: "a",
+    property: {
+      "Property Address": "12 Acacia Avenue, Testtown",
+      "Property Postcode": "AB1 2CD",
+      "Policy Number": "POL-998877",
+    },
+  },
   { _id: "b", property: { "Property Address": "7 Birch Road, Testtown", "Property Postcode": "EF3 4GH" } },
   { _id: "c", property: { "Property Address": "12 Birch Close, Othertown", "Property Postcode": "IJ5 6KL" } },
 ];
