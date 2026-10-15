@@ -6,16 +6,28 @@
     "url": "https://github.com/dniasoff/lendlord-mcp",
     "source": "github"
   },
-  "version": "0.1.0",
+  "version": "0.1.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "lendlord-mcp",
-      "version": "0.1.0",
-      "transport": { "type": "stdio" },
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      },
       "environmentVariables": [
-        { "name": "LENDLORD_EMAIL", "description": "Lendlord login email", "isRequired": true, "isSecret": false },
-        { "name": "LENDLORD_PASSWORD", "description": "Lendlord password", "isRequired": true, "isSecret": true },
+        {
+          "name": "LENDLORD_EMAIL",
+          "description": "Lendlord login email",
+          "isRequired": true,
+          "isSecret": false
+        },
+        {
+          "name": "LENDLORD_PASSWORD",
+          "description": "Lendlord password",
+          "isRequired": true,
+          "isSecret": true
+        },
         {
           "name": "LENDLORD_TOTP_SECRET",
           "description": "Base32 TOTP secret if 2FA is enabled",
