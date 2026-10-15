@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["src/**", "test/**", "*.json", "!package-lock.json"]
+    "includes": ["src/**", "test/**", "biome.json", "tsconfig.json", "release-please-config.json"]
   },
   "formatter": {
     "enabled": true,

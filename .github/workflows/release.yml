@@ -3,6 +3,11 @@ name: Release
 on:
   push:
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)publish, e.g. v0.1.0
+        required: true
 
 permissions:
   contents: write
@@ -11,10 +16,10 @@ permissions:
 
 jobs:
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       released: ${{ steps.rp.outputs.release_created }}
-      version: ${{ steps.rp.outputs.version }}
       tag: ${{ steps.rp.outputs.tag_name }}
     steps:
       - id: rp
@@ -23,15 +28,29 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+  target:
+    name: Resolve release
+    needs: release-please
+    if: always() && (needs.release-please.outputs.released == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.t.outputs.tag }}
+      version: ${{ steps.t.outputs.version }}
+    steps:
+      - id: t
+        run: |
+          TAG="${{ needs.release-please.outputs.tag || inputs.tag }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
   docker:
     name: Publish Docker image
-    needs: release-please
-    if: needs.release-please.outputs.released == 'true'
+    needs: target
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.release-please.outputs.tag }}
+          ref: ${{ needs.target.outputs.tag }}
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -40,15 +59,14 @@ jobs:
       - name: Build and push
         run: |
           IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}
-          V=${{ needs.release-please.outputs.version }}
+          V=${{ needs.target.outputs.version }}
           docker build -t $IMAGE:$V -t $IMAGE:latest .
           docker push $IMAGE:$V
           docker push $IMAGE:latest
 
   npm:
     name: Publish to npm
-    needs: release-please
-    if: needs.release-please.outputs.released == 'true'
+    needs: target
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -58,7 +76,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.release-please.outputs.tag }}
+          ref: ${{ needs.target.outputs.tag }}
       - uses: actions/setup-node@v5
         with:
           node-version: 24
