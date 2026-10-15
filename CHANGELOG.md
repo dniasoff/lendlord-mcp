@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/). From 0.1.0 on, this file is maintained by [release-please](https://github.com/googleapis/release-please) from [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.3.0](https://github.com/dniasoff/lendlord-mcp/compare/v0.2.0...v0.3.0) (2026-10-15)
+
+
+### Features
+
+* attach, view and remove receipts on bank transactions ([1697ef8](https://github.com/dniasoff/lendlord-mcp/commit/1697ef8917fe24bdb73de950a690015468f8300a))
+
 ## [0.2.0](https://github.com/dniasoff/lendlord-mcp/compare/v0.1.1...v0.2.0) (2026-10-15)
 
 
