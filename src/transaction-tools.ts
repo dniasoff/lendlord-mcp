@@ -17,18 +17,19 @@ const confirm = z.boolean().optional().describe("Set true once the user has appr
  */
 export function transactionForm(
   tx: TransactionRecord,
-  change: { file: UploadFile } | { removeReceipt: true },
+  change: { file: UploadFile } | { removeReceipt: true } | { updates: Partial<TransactionRecord> } = { updates: {} },
 ): FormData {
   const form = new FormData();
   if ("file" in change) {
     form.append("file", new Blob([new Uint8Array(change.file.data)], { type: change.file.type }), change.file.name);
     form.append("fileName", change.file.name);
-  } else {
+  } else if ("removeReceipt" in change) {
     form.append("removeReceipt", "true");
   }
   // Re-send the transaction's own plain values, as the web app does. Nested objects (the
   // populated category, rent collection, ...) are server-side joins and must not be sent back.
-  for (const [key, value] of Object.entries(tx)) {
+  const values = "updates" in change ? { ...tx, ...change.updates } : tx;
+  for (const [key, value] of Object.entries(values)) {
     if (key === "file" || (typeof value === "object" && value !== null)) continue;
     if (typeof value === "boolean" || value || value === null) form.append(key, String(value));
   }
@@ -69,6 +70,46 @@ export function registerTransactionTools(server: McpServer, { lendlord, guard }:
     const verdict = guard.check(action, ok);
     return verdict.ok ? undefined : fail(verdict.message);
   };
+
+  server.registerTool(
+    "update_transaction",
+    {
+      title: "Update transaction",
+      description:
+        "Change the property or category linked to a bank/manual transaction. Only the fields you pass change. The existing receipt is kept; this does not upload or remove a receipt.",
+      inputSchema: {
+        transactionId: z.string().describe("Transaction id from list_transactions"),
+        propertyDetailsId: z.string().optional().describe("Property id to link, or an empty string to unlink"),
+        categoryId: z.string().optional().describe("Category id to assign"),
+        confirm,
+      },
+      annotations: WRITE,
+    },
+    safe(async ({ transactionId, propertyDetailsId, categoryId, confirm: ok }) => {
+      if (propertyDetailsId === undefined && categoryId === undefined)
+        return fail("Pass propertyDetailsId, categoryId, or both.");
+      const tx = await fetchTransaction(lendlord, transactionId);
+      const changes = {
+        ...(propertyDetailsId !== undefined ? { propertyDetailsId } : {}),
+        ...(categoryId !== undefined ? { categoryId } : {}),
+      };
+      const blocked = gate(`update transaction "${tx.description}"`, ok);
+      if (blocked) return blocked;
+      const res = await lendlord.client.upload<{ transaction?: TransactionRecord }>(
+        `/api/transactions/${transactionId}`,
+        transactionForm(tx, { updates: changes }),
+        "PUT",
+      );
+      if (!res.transaction) return fail("Lendlord did not confirm the transaction update. Check get_transaction.");
+      lendlord.invalidate();
+      return json({
+        ...summarise(res.transaction),
+        propertyDetailsId: res.transaction.propertyDetailsId,
+        categoryId: res.transaction.categoryId,
+        receipt: res.transaction.file ? { name: res.transaction.file.name } : null,
+      });
+    }),
+  );
 
   server.registerTool(
     "get_transaction",

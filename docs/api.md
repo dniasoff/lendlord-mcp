@@ -115,6 +115,10 @@ Constant `o = "/api/documents"`.
 
 Entity types seen: `property`, `tenant`, `portfolio`. Property document slots (key → label) are listed in `src/schema.ts`. The upload dialog accepts `message/rfc822`, so `.eml` emails can be stored directly.
 
+### Property Photos gallery
+
+The Photos gallery is stored separately in `property.images`; uploading a normal document does not add a gallery photo. The web app's legacy gallery uploader sends `PUT /api/legacy/documents/property/:propertyId` as multipart with `key` (unique image key), `file`, `name`, and `collectionName=images`. To remove one image, it sends encrypted JSON `{ key, collectionName: "images" }` to `POST /api/legacy/documents/remove/property/:propertyId`. The `update_property_images` tool wraps these endpoints; add new images before removing old keys when replacing them.
+
 ## Tenants and rent
 
 Tenants are read from `getUserById.tenants`. `/api/getClientTenants` returned `[]` for a landlord account and appears to be for other roles.

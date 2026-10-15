@@ -56,6 +56,14 @@ describe("transactionForm", () => {
     expect(sent).not.toHaveProperty("fileName");
     expect(sent.description).toBe("Octopus Energy DD");
   });
+
+  it("updates plain fields while keeping the receipt", () => {
+    const sent = entries(transactionForm(tx, { updates: { propertyDetailsId: "p2", categoryId: "cat2" } }));
+    expect(sent).toMatchObject({ propertyDetailsId: "p2", categoryId: "cat2", description: tx.description });
+    expect(sent).not.toHaveProperty("file");
+    expect(sent).not.toHaveProperty("fileName");
+    expect(sent).not.toHaveProperty("removeReceipt");
+  });
 });
 
 describe("filterTransactions", () => {
