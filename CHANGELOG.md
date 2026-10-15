@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/). From 0.1.0 on, this file is maintained by [release-please](https://github.com/googleapis/release-please) from [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.2.0](https://github.com/dniasoff/lendlord-mcp/compare/v0.1.0...v0.2.0) (2026-10-15)
+
+
+### Features
+
+* add send_document tool, Biome lint/format CI and release-please versioning ([a83ef18](https://github.com/dniasoff/lendlord-mcp/commit/a83ef18d8e238803a1e877028ea7883ccb665703))
+
 ## 0.1.0 (2026-10-15)
 
 First release.
