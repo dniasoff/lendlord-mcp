@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/). From 0.1.0 on, this file is maintained by [release-please](https://github.com/googleapis/release-please) from [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.4.0](https://github.com/dniasoff/lendlord-mcp/compare/v0.3.0...v0.4.0) (2026-10-15)
+
+
+### Features
+
+* update property photos and transactions ([#13](https://github.com/dniasoff/lendlord-mcp/issues/13)) ([56c11b5](https://github.com/dniasoff/lendlord-mcp/commit/56c11b590c2d96b18c4cf63474fefe88c6c793be))
+
 ## [0.3.0](https://github.com/dniasoff/lendlord-mcp/compare/v0.2.0...v0.3.0) (2026-10-15)
 
 
