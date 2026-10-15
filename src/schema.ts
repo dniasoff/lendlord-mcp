@@ -156,5 +156,3 @@ export const PROPERTY_DOCUMENT_SLOTS: Record<string, string> = {
   tenancyAgreement: "Tenancy Agreement",
   leaseAgreement: "Lease Agreement",
 };
-
-export const DATE_FIELD = /(Date|Contract End)$/;

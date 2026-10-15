@@ -7,6 +7,8 @@ Reverse-engineered on 2026-10-15 from app.lendlord.io (web bundle `runtime.844cf
 - Base: `https://app.lendlord.io`. Every endpoint is under `/api/`.
 - Auth is a session cookie set by `POST /api/loginUser`. Requests use plain `fetch` with same-origin cookies and send no `Authorization` header.
 - Error responses are `content-type: plain/text` with a human-readable message, for example `401 Email or password do not match`.
+- Transient failures happen: uploads occasionally return `500 socket hang up` even though the file was stored. `GET /api/documents/:entityType/:entityId` confirms whether it landed before a retry.
+- `GET /api/communications` serves at most 100 items per request; page through with `skip`.
 
 ## Payload encryption
 
@@ -69,6 +71,8 @@ encryptPayload(JSON.stringify(body))  ->  "<16-byte IV hex>:<ciphertext hex>"
   "historicalEntirePortfolio": [ /* monthly snapshots, includes status:"portfolio" aggregate rows */ ]
 }
 ```
+
+Field types (verified 2026-10-15): `Internal Area` is square metres (the app fills it from `floorAreaSqm`). Percentage fields (`Current Rate`, `Revert Rate`, `Agent Fee Percent`, `FA/SL/BF Current Rate`, `Ownership Percentage N`) are stored as **fractions**: the app divides by 100 on save, so 4.5% is `0.045`. Sending a non-numeric string to a numeric field returns `500 Cast to Number failed`.
 
 Property fields use the **human-readable column names** shown in the UI as their keys. Ownership is stored as `"Applicant 1": <applicantId>` plus `"Ownership Percentage 1": 1` (a fraction). Dates are ISO timestamps. Fields such as `LTV`, `Equity`, `Gross Monthly Cashflow`, `Last 12 Months …`, `Annual …` and `10Y …` are recomputed by the server on every save. The full list of editable fields is in `src/schema.ts`.
 
@@ -153,6 +157,8 @@ Constant `a = "/api/communications"`.
 | DELETE | `/api/communications/:id` | ✅ deleting a property also deletes its reports |
 | DELETE | `/api/communications/:id/files/:fileId` | |
 | POST | `/api/communications/:id/message` | ✅ multipart: `type` (`"note"` = internal, `"message"` = reply visible to the tenant), `message`, `deferUpload:"true"`, optional `file` (repeatable) |
+
+Landlords cannot create a `conversation` without a tenant: `POST /api/communications {type:"conversation", tenant:[]}` returns `500 Argument passed in does not match the accepted types`. A maintenance report accepts a client-supplied **`createdAt`**, which is stored as given (used for back-dated history by `log_communication`). Unknown fields are dropped.
 
 Types: `maintenanceReport`, `conversation`. Maintenance types (`maintenanceType`): Air-conditioning, Heating and boiler, Electricity, Internet, Lighting, Plumbing, Water or leaks, Basin, Bathroom and Toilet, Laundry, Alarms and smoke detectors, Security camera system maintenance, Intercom, Doors and locks, Pests/Vermin, Floors walls and ceilings, Structural Issues, Windows, Furniture, Kitchen, Appliances, Mold, Cleaning, Carpentry, Exterior Maintenance, Roof, Garden, Garage, Shared facilities, Bike storage, Bin storage, Chimney, Stairs, Other.
 

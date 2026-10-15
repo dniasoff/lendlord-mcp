@@ -15,6 +15,8 @@ const uploads = process.env.LENDLORD_LIVE_UPLOAD_TESTS === "1";
 describe.skipIf(!live)("live Lendlord writes", () => {
   let client: Client;
   let propertyId: string | undefined;
+  let otherPropertyId: string | undefined;
+  let tenantId: string | undefined;
   // Unique per run so find_property can't match leftovers from earlier runs.
   const postcode = `ZZ${Math.floor(Math.random() * 90 + 10)} ${Math.floor(Math.random() * 9)}ZZ`;
 
@@ -36,6 +38,7 @@ describe.skipIf(!live)("live Lendlord writes", () => {
 
   afterAll(async () => {
     if (tenantId) await call("delete_tenant", { tenantId }).catch(() => undefined);
+    if (otherPropertyId) await call("delete_property", { propertyId: otherPropertyId }).catch(() => undefined);
     if (propertyId) await call("delete_property", { propertyId }).catch(() => undefined);
   });
 
@@ -78,6 +81,21 @@ describe.skipIf(!live)("live Lendlord writes", () => {
     expect(p.fields["Property Value"]).toBe(3000);
   }, 60_000);
 
+  it("stores human-friendly values in Lendlord's units and rejects ambiguous ones (#6)", async () => {
+    const res = await call("update_property", {
+      propertyId,
+      fields: { "Internal Area": "73 square metres", "Current Rate": "4.5%", "Property Value": "£3,500" },
+    });
+    expect(res.conversions.map((c: { field: string }) => c.field).sort()).toEqual(
+      ["Current Rate", "Internal Area", "Property Value"].sort(),
+    );
+    const p = await call("get_property", { propertyId });
+    expect(p.fields).toMatchObject({ "Internal Area": 73, "Current Rate": 0.045, "Property Value": 3500 });
+    await expect(call("update_property", { propertyId, fields: { "Internal Area": "73 m" } })).rejects.toThrow(
+      /Internal Area: expected square metres/,
+    );
+  }, 60_000);
+
   it.skipIf(!uploads)(
     "uploads, renames and deletes a document",
     async () => {
@@ -100,8 +118,6 @@ describe.skipIf(!live)("live Lendlord writes", () => {
     90_000,
   );
 
-  let tenantId: string | undefined;
-
   it("adds, updates and lists a tenant", async () => {
     const t = await call("add_tenant", {
       propertyId,
@@ -119,6 +135,48 @@ describe.skipIf(!live)("live Lendlord writes", () => {
     expect(full).toMatchObject({ rentPayment: 7, notes: "zz note", email: "zz-test@example.com" });
     expect(String(full.tenancyStartDate)).toMatch(/^2026-01-01/);
     expect((await call("list_tenants", { propertyId })).map((x: { id: string }) => x.id)).toEqual([tenantId]);
+  }, 60_000);
+
+  it("shows each tenant's property and can move a tenant between properties (#4)", async () => {
+    const other = await call("add_property", { address: `ZZ TEST lendlord-mcp other ${Date.now()} - DELETE ME` });
+    otherPropertyId = other.created[0].id;
+
+    const [listed] = await call("list_tenants", { propertyId });
+    expect(listed).toMatchObject({ id: tenantId, propertyId, propertyAddress: expect.stringContaining("ZZ TEST") });
+    expect((await call("get_property", { propertyId })).tenants.map((t: { id: string }) => t.id)).toEqual([tenantId]);
+
+    const moved = await call("update_tenant", { tenantId, fields: { propertyDetailsId: otherPropertyId } });
+    expect(moved).toMatchObject({ propertyId: otherPropertyId, propertyAddress: other.created[0].address });
+    expect(await call("list_tenants", { propertyId })).toEqual([]);
+    expect((await call("list_tenants", { propertyId: otherPropertyId })).map((t: { id: string }) => t.id)).toEqual([
+      tenantId,
+    ]);
+    await expect(
+      call("update_tenant", { tenantId, fields: { propertyDetailsId: "000000000000000000000000" } }),
+    ).rejects.toThrow(/No property with id/);
+
+    await call("update_tenant", { tenantId, fields: { propertyDetailsId: propertyId } });
+    await call("delete_property", { propertyId: otherPropertyId });
+    otherPropertyId = undefined;
+  }, 90_000);
+
+  it("logs a back-dated communication and lists it by property (#3, #5)", async () => {
+    const logged = await call("log_communication", {
+      propertyId,
+      date: "2025-03-04",
+      subject: "ZZ TEST email thread",
+      summary: "Agent confirmed the boiler service date.",
+      counterparties: ["agent@example.com", "Test Lettings"],
+    });
+    expect(logged).toMatchObject({ status: "closed", date: expect.stringMatching(/^2025-03-04/) });
+    const got = await call("get_communication", { communicationId: logged.id });
+    expect(got).toMatchObject({ status: "closed", summary: "ZZ TEST email thread", maintenanceType: "Other" });
+    expect(got.description).toContain("Counterparties: agent@example.com, Test Lettings");
+    expect(String(got.createdAt)).toMatch(/^2025-03-04/);
+
+    const page = await call("list_communications", { propertyId, limit: 500 });
+    expect(page.communications.map((c: { _id: string }) => c._id)).toContain(logged.id);
+    await call("delete_communication", { communicationId: logged.id });
   }, 60_000);
 
   it("runs a maintenance report lifecycle", async () => {

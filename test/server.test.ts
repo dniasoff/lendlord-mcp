@@ -40,7 +40,10 @@ function fakeLendlord() {
     const ok = (body: unknown, headers: Record<string, string> = {}) =>
       new Response(encrypt(KEY, JSON.stringify(body)), { status: 200, headers });
     if (init?.method && init.method !== "GET" && url.pathname !== "/api/loginUser") {
-      writes.push(`${init.method} ${url.pathname} ${decrypt(KEY, String(init.body))}`);
+      const body = decrypt(KEY, String(init.body));
+      writes.push(`${init.method} ${url.pathname} ${body}`);
+      // Echo updates the way Lendlord does, so tools that read the reply behave normally.
+      if (url.pathname === "/api/updateProperty") return ok({ propertiesUpdated: JSON.parse(body).properties });
       return ok({ ok: true });
     }
     switch (url.pathname) {
@@ -74,6 +77,29 @@ const write = (n: number, confirm?: boolean) => ({
 });
 
 describe("MCP server", () => {
+  it("rejects bad field values before asking for confirmation, and converts friendly ones (#6)", async () => {
+    const { lendlord, writes } = fakeLendlord();
+    const client = await connect(lendlord, { readOnly: false, autoConfirm: false });
+    const bad = await client.callTool({
+      name: "update_property",
+      arguments: { propertyId: "p1", fields: { "Internal Area": "73 m" } },
+    });
+    expect(text(bad)).toMatch(/^Internal Area: expected square metres/);
+    expect(writes).toHaveLength(0);
+
+    const good = await client.callTool({
+      name: "update_property",
+      arguments: {
+        propertyId: "p1",
+        fields: { "Internal Area": "73 square metres", "Current Rate": "4.5%" },
+        confirm: true,
+      },
+    });
+    expect(good.isError).toBeFalsy();
+    const sent = JSON.parse(writes[0]!.split(" ").slice(2).join(" "));
+    expect(sent.properties[0].property).toMatchObject({ "Internal Area": 73, "Current Rate": 0.045 });
+  });
+
   it("lists properties and their documents", async () => {
     const client = await connect(fakeLendlord().lendlord);
     const props = JSON.parse(text(await client.callTool({ name: "list_properties", arguments: { search: "zz9" } })));

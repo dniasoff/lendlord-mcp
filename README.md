@@ -64,12 +64,27 @@ Without Docker: `MCP_TRANSPORT=http MCP_AUTH_TOKEN=... npx -y lendlord-mcp`. `GE
 | Documents | `list_documents` | `upload_document` (path / URL / base64, into a slot like `gasCertificate` or a custom key), `rename_document`, `link_document`, `send_document` (emails it), `delete_document` |
 | Email filing | `find_property` | `file_email` |
 | Tenants | `list_tenants`, `get_tenant` | `add_tenant`, `update_tenant`, `delete_tenant` |
-| Maintenance | `list_communications`, `get_communication` | `create_maintenance_report`, `update_communication`, `add_communication_message`, `delete_communication` |
+| Maintenance & history | `list_communications` (up to 1000, filter by property), `get_communication` | `create_maintenance_report`, `log_communication` (back-dated email/call history), `update_communication`, `add_communication_message`, `delete_communication` |
 | Tasks & alerts | `list_tasks` | `create_task`, `update_task` (edit, complete, reopen, delete) |
 | Money | `get_rent_collection`, `list_transactions`, `get_profit_and_loss` | |
 | Anything else | `lendlord_request` (GET) | `lendlord_request` (POST/PUT/PATCH/DELETE) |
 
-Property fields use Lendlord's own names, for example `"Property Value"`, `"EPC Due Date"` and `"Gas Certificate Due Date"`. Call `list_property_fields` for the full list. Dates are passed as `YYYY-MM-DD`. Updates are partial: only the fields you pass change, and `null` clears a field.
+Property fields use Lendlord's own names, for example `"Property Value"`, `"EPC Due Date"` and `"Gas Certificate Due Date"`. Call `list_property_fields` for the full list. Updates are partial: only the fields you pass change, and `null` clears a field.
+
+Values are checked and converted before anything is sent, and the response lists any conversions:
+
+| Kind | Accepts | Stored as |
+|---|---|---|
+| Dates | `2026-10-15`, `15/10/2026`, ISO date-time | ISO timestamp |
+| Money / counts | `150000`, `"£150,000"`, `"150k"`, `"1.2m"`, `"£650 pcm"` | number |
+| `Internal Area` | `73`, `"73 sq m"`, `"73 square metres"`, `"790 sq ft"` (converted) | square metres |
+| Rates, agent fee, ownership | `"4.5%"` or `4.5`; values of 1 or less are taken as fractions | fraction (`0.045`) |
+
+Anything ambiguous, such as `"73 m"` or `"about 150k"`, is rejected with a field-specific error before the confirmation prompt, so no write is attempted.
+
+**Tenants** belong to exactly one property (`propertyDetailsId`). `list_tenants`, `get_tenant` and `get_property` show the linked property's address, and `propertyMissing: true` flags a link to a deleted property. To move a tenant, use `update_tenant { fields: { propertyDetailsId } }`.
+
+**Reliability:** network drops and Lendlord's transient `500 socket hang up` / 502–504 errors are retried automatically for reads and updates. Uploads are retried only after checking that the file didn't actually land, so a retry never creates a duplicate document.
 
 ## Filing emails against properties
 
@@ -78,7 +93,9 @@ The server doesn't read any mailbox. Your agent reads mail with its own email to
 1. `find_property { text }` ranks properties against the email's subject and body. It scores postcode matches (spacing-insensitive), house number plus street, tenant email or name, and policy, certificate and account numbers.
 2. `file_email { entityId, emlBase64 | subject/from/to/date/text/html, attachments[] }` stores the email as an `.eml` document named `YYYY-MM-DD - Subject.eml` on the property (or tenant). Each attachment becomes its own document named `YYYY-MM-DD - Subject - file.pdf`.
 
-A typical agent instruction: *"For each new email about a rental property, call find_property with the subject and body. If the top score is clearly ahead, file_email it to that property. Otherwise ask me."*
+3. `log_communication { propertyId, date, subject, summary, counterparties[] }` adds a dated entry to the property's communication history, so threads appear in `list_communications`. Lendlord has no generic communication log, and landlords can't start a tenant "conversation" without a tenant. So the entry is stored as a back-dated, closed maintenance report of type "Other" that isn't shared with tenants.
+
+A typical agent instruction: *"For each new email about a rental property, call find_property with the subject and body. If the top score is clearly ahead, file_email it to that property and log_communication a one-line summary. Otherwise ask me."*
 
 ## Configuration
 

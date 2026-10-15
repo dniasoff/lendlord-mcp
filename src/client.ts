@@ -12,6 +12,8 @@ export interface ClientOptions {
   fetch?: typeof fetch;
 }
 
+const TRANSIENT_MESSAGE = /socket hang up|ECONNRESET|ETIMEDOUT|EPIPE|EAI_AGAIN|fetch failed|other side closed/i;
+
 export class LendlordError extends Error {
   constructor(
     message: string,
@@ -21,9 +23,20 @@ export class LendlordError extends Error {
     super(message);
     this.name = "LendlordError";
   }
+
+  /** Network drops, gateway errors, and Lendlord's own "socket hang up" 500s are worth retrying. */
+  get transient(): boolean {
+    return this.status === 0 || [502, 503, 504].includes(this.status) || TRANSIENT_MESSAGE.test(this.message);
+  }
 }
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+/** Methods that are safe to repeat if a request fails half-way. POST is not (it may have been applied). */
+const IDEMPOTENT: ReadonlySet<Method> = new Set(["GET", "PUT", "PATCH"]);
+export const RETRY_DELAYS_MS = [400, 1500];
+
+export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export interface RequestOptions {
   query?: Record<string, string | number | boolean | undefined>;
@@ -79,6 +92,19 @@ export class LendlordClient {
 
   async request<T = unknown>(method: Method, path: string, opts: RequestOptions = {}): Promise<T> {
     if (!this.cookies.size) await this.login();
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.sendWithRelogin<T>(method, path, opts);
+      } catch (err) {
+        const retry = err instanceof LendlordError && err.transient && IDEMPOTENT.has(method);
+        const delay = RETRY_DELAYS_MS[attempt];
+        if (!retry || delay === undefined) throw err;
+        await sleep(delay);
+      }
+    }
+  }
+
+  private async sendWithRelogin<T>(method: Method, path: string, opts: RequestOptions): Promise<T> {
     try {
       return await this.send<T>(method, path, opts);
     } catch (err) {
@@ -139,7 +165,14 @@ export class LendlordClient {
       headers["content-type"] = "text/plain;charset=UTF-8";
     }
 
-    const res = await this.fetchImpl(url, { method, headers, body, redirect: "manual" });
+    let res: Response;
+    try {
+      res = await this.fetchImpl(url, { method, headers, body, redirect: "manual" });
+    } catch (err) {
+      // Network-level failure (connection reset, DNS, timeout): status 0, marked transient.
+      const cause = (err as { cause?: { code?: string; message?: string } }).cause;
+      throw new LendlordError(`${(err as Error).message}${cause?.code ? ` (${cause.code})` : ""}`, 0, path);
+    }
     this.absorbSetCookie(res.headers);
     const text = await res.text();
 

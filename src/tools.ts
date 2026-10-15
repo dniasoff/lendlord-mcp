@@ -3,7 +3,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { LendlordError } from "./client.js";
 import type { WriteGuard } from "./guard.js";
-import { type Lendlord, type PropertyDetails, summariseProperty } from "./lendlord.js";
+import { type Communication, type Lendlord, type PropertyDetails, summariseProperty } from "./lendlord.js";
 
 export interface ToolContext {
   lendlord: Lendlord;
@@ -89,17 +89,24 @@ export function registerTools(server: McpServer, { lendlord, guard }: ToolContex
     "get_property",
     {
       title: "Get property",
-      description: "Every stored field for one property, plus the documents linked to it.",
+      description: "Every stored field for one property, plus its tenants and the documents linked to it.",
       inputSchema: { propertyId: z.string().describe("Property id from list_properties") },
       annotations: READ,
     },
     safe(async ({ propertyId }) => {
-      const [p, docs] = await Promise.all([lendlord.property(propertyId), lendlord.documents()]);
+      const [p, docs, tenants] = await Promise.all([
+        lendlord.property(propertyId),
+        lendlord.documents(),
+        lendlord.tenants(),
+      ]);
       return json({
         id: p._id,
         status: p.status,
         applicants: p.applicants,
         fields: p.property,
+        tenants: tenants
+          .filter((t) => t.propertyDetailsId === propertyId)
+          .map((t) => ({ id: t._id, name: t.name, status: t.status, rent: t.rentPayment })),
         documents: docs.filter((d) => d.entities?.some((e) => e.entityId === propertyId)),
       });
     }),
@@ -178,16 +185,18 @@ export function registerTools(server: McpServer, { lendlord, guard }: ToolContex
     "list_communications",
     {
       title: "List communications",
-      description: "Maintenance reports and other tenant/landlord communications.",
+      description:
+        "Maintenance reports and other tenant/landlord communications, newest first. Fetches Lendlord's 100-item pages as needed up to `limit` (max 1000); continue with skip = nextSkip while hasMore is true.",
       inputSchema: {
         type: z.string().optional().describe('e.g. "maintenanceReport"'),
-        limit: z.number().int().min(1).max(100).default(100),
+        propertyId: z.string().optional().describe("Only communications for this property"),
+        limit: z.number().int().min(1).max(1000).default(100),
         skip: z.number().int().min(0).default(0),
       },
       annotations: READ,
     },
-    safe(async ({ type, limit, skip }) =>
-      json(await lendlord.client.get("/api/communications", { type, limit, skip })),
+    safe(async ({ type, propertyId, limit, skip }) =>
+      json(await listCommunications(lendlord, { type, propertyId, limit, skip })),
     ),
   );
 
@@ -252,4 +261,38 @@ export function complianceItems(properties: PropertyDetails[], withinDays: numbe
     }
   }
   return items.sort((a, b) => a.daysLeft - b.daysLeft);
+}
+
+const COMMUNICATIONS_PAGE = 100;
+
+/** Page through /api/communications (Lendlord serves at most 100 per request; issue #5). */
+export async function listCommunications(
+  lendlord: Lendlord,
+  opts: { type?: string; propertyId?: string; limit: number; skip: number },
+) {
+  const found: Communication[] = [];
+  let skip = opts.skip;
+  let hasMore = true;
+  while (hasMore && found.length < opts.limit) {
+    const page = await lendlord.client.get<{ communications?: Communication[]; hasMore?: boolean }>(
+      "/api/communications",
+      { type: opts.type, limit: COMMUNICATIONS_PAGE, skip },
+    );
+    const items = page.communications ?? [];
+    for (const [i, c] of items.entries()) {
+      if (opts.propertyId && c.propertyDetailsId !== opts.propertyId) continue;
+      found.push(c);
+      if (found.length === opts.limit) {
+        // Stop mid-page: resume right after this item.
+        return {
+          communications: found,
+          hasMore: i < items.length - 1 || Boolean(page.hasMore),
+          nextSkip: skip + i + 1,
+        };
+      }
+    }
+    skip += items.length;
+    hasMore = Boolean(page.hasMore) && items.length > 0;
+  }
+  return { communications: found, hasMore, nextSkip: skip };
 }

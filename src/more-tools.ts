@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { coerceFields, coerceValue, tenantFieldKind } from "./fields.js";
 import type { Communication, LendlordDocument, PropertyDetails, Tenant } from "./lendlord.js";
 import { fail, json, safe, type ToolContext } from "./tools.js";
 import { mimeFor, uploadDocument } from "./write-tools.js";
@@ -49,25 +50,25 @@ export const MAINTENANCE_TYPES = [
   "Other",
 ] as const;
 
-const TENANT_DATE_FIELDS = /^(dob|tenancyStartDate|tenancyEndDate|firstPaymentDate|rentReviewDate)$/;
-
-/** Tenant dates are stored as ISO timestamps; accept YYYY-MM-DD. */
+/** Tenant dates to ISO, rent/deposit strings to numbers (throws FieldError on bad input). */
 export function normaliseTenantFields(fields: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(fields)) {
-    out[k] =
-      TENANT_DATE_FIELDS.test(k) && typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v;
-  }
-  return out;
+  return coerceFields(fields, tenantFieldKind).values;
 }
 
-export function summariseTenant(t: Tenant) {
+/**
+ * A tenant belongs to exactly one property via `propertyDetailsId` (issue #4). The address is
+ * included so a wrong link is visible; `propertyMissing` flags links to deleted/unknown properties.
+ */
+export function summariseTenant(t: Tenant, properties?: PropertyDetails[]) {
+  const property = properties?.find((p) => p._id === t.propertyDetailsId);
   return {
     id: t._id,
     name: t.name,
     email: t.email,
     status: t.status,
     propertyId: t.propertyDetailsId,
+    propertyAddress: property?.property["Property Address"] as string | undefined,
+    propertyMissing: properties && !property ? true : undefined,
     rent: t.rentPayment,
     paymentFrequency: t.paymentFrequency,
     tenancyStartDate: t.tenancyStartDate,
@@ -87,17 +88,19 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
     "list_tenants",
     {
       title: "List tenants",
-      description: "Tenants (actual and prospect), optionally for one property.",
+      description:
+        "Tenants (actual and prospect), optionally for one property. Each tenant is linked to exactly one property (propertyId + propertyAddress); propertyMissing means it points at a property that no longer exists. Fix a wrong link with update_tenant { propertyDetailsId }.",
       inputSchema: { propertyId: z.string().optional() },
       annotations: READ,
     },
-    safe(async ({ propertyId }) =>
-      json(
-        (await lendlord.tenants())
+    safe(async ({ propertyId }) => {
+      const [tenants, properties] = await Promise.all([lendlord.tenants(), lendlord.properties()]);
+      return json(
+        tenants
           .filter((t) => !propertyId || t.propertyDetailsId === propertyId)
-          .map(summariseTenant),
-      ),
-    ),
+          .map((t) => summariseTenant(t, properties)),
+      );
+    }),
   );
 
   server.registerTool(
@@ -109,8 +112,18 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
       annotations: READ,
     },
     safe(async ({ tenantId }) => {
-      const [t, docs] = await Promise.all([lendlord.tenant(tenantId), lendlord.documents()]);
-      return json({ ...t, documents: docs.filter((d) => d.entities?.some((e) => e.entityId === tenantId)) });
+      const [t, docs, properties] = await Promise.all([
+        lendlord.tenant(tenantId),
+        lendlord.documents(),
+        lendlord.properties(),
+      ]);
+      const { propertyAddress, propertyMissing } = summariseTenant(t, properties);
+      return json({
+        ...t,
+        propertyAddress,
+        propertyMissing,
+        documents: docs.filter((d) => d.entities?.some((e) => e.entityId === tenantId)),
+      });
     }),
   );
 
@@ -145,10 +158,6 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
       annotations: WRITE,
     },
     safe(async ({ propertyId, name, email, rentPayment, paymentFrequency, status, fields, confirm: ok }) => {
-      const blocked = gate(`add tenant "${name}"`, ok);
-      if (blocked) return blocked;
-      await lendlord.property(propertyId);
-      const user = await lendlord.user();
       const tenant = normaliseTenantFields({
         subTenants: [],
         ...fields,
@@ -159,9 +168,13 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
         propertyDetailsId: propertyId,
         status,
       });
+      const blocked = gate(`add tenant "${name}"`, ok);
+      if (blocked) return blocked;
+      await lendlord.property(propertyId);
+      const user = await lendlord.user();
       const created = await lendlord.client.post<Tenant>(`/api/addTenant/${user.clientDetailsId}`, { tenant });
       lendlord.invalidate();
-      return json(summariseTenant(created));
+      return json(summariseTenant(created, await lendlord.properties()));
     }),
   );
 
@@ -170,23 +183,28 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
     {
       title: "Update tenant",
       description:
-        "Change fields on a tenant (same field names as add_tenant). Only the fields you pass change; null clears.",
+        "Change fields on a tenant (same field names as add_tenant). Only the fields you pass change; null clears. Move a tenant to another property with { propertyDetailsId: <propertyId> }.",
       inputSchema: { tenantId: z.string(), fields: z.record(z.string(), fieldValue), confirm },
       annotations: WRITE,
     },
     safe(async ({ tenantId, fields, confirm: ok }) => {
+      const changes = normaliseTenantFields(fields);
+      if (typeof changes.propertyDetailsId === "string") await lendlord.property(changes.propertyDetailsId);
       const blocked = gate(`update tenant ${tenantId}`, ok);
       if (blocked) return blocked;
       const current = await lendlord.tenant(tenantId);
       const merged: Record<string, unknown> = { ...current };
-      for (const [k, v] of Object.entries(normaliseTenantFields(fields))) {
+      for (const [k, v] of Object.entries(changes)) {
         if (v === null) delete merged[k];
         else merged[k] = v;
       }
       const updated = await lendlord.client.put<Tenant>(`/api/updateTenant/${tenantId}`, { tenant: merged });
       lendlord.invalidate();
+      const properties = await lendlord.properties();
       return json(
-        updated && typeof updated === "object" && "_id" in updated ? summariseTenant(updated) : { updated: tenantId },
+        updated && typeof updated === "object" && "_id" in updated
+          ? summariseTenant(updated, properties)
+          : { updated: tenantId },
       );
     }),
   );
@@ -258,6 +276,57 @@ export function registerMoreTools(server: McpServer, { lendlord, guard }: ToolCo
       });
       // The API answers with a one-element array.
       return json(Array.isArray(res) ? res[0] : res);
+    }),
+  );
+
+  server.registerTool(
+    "log_communication",
+    {
+      title: "Log communication history",
+      description:
+        'Record a past email thread, call or letter against a property (issue #3). Lendlord has no generic communication log and landlords cannot start a "conversation" without a tenant, so this is stored as a back-dated maintenance report (default type "Other", status closed, not shared with tenants) whose description lists the date, counterparties and summary. It then appears in list_communications/get_communication with the original date. Use file_email as well to keep the full message and attachments as documents.',
+      inputSchema: {
+        propertyId: z.string(),
+        date: z.string().describe("When the thread started: YYYY-MM-DD or ISO date-time"),
+        subject: z.string().min(1),
+        summary: z.string().min(1).describe("Concise summary of the thread"),
+        counterparties: z.array(z.string()).default([]).describe("People/companies involved, e.g. emails or names"),
+        channel: z.enum(["email", "phone", "letter", "meeting", "other"]).default("email"),
+        maintenanceType: z.enum(MAINTENANCE_TYPES).default("Other"),
+        status: z.enum(["open", "closed"]).default("closed"),
+        tenantIds: z.array(z.string()).default([]),
+        confirm,
+      },
+      annotations: WRITE,
+    },
+    safe(async (args) => {
+      const createdAt = coerceValue("date", "date", args.date) as string;
+      await lendlord.property(args.propertyId);
+      const blocked = gate(`log ${args.channel} "${args.subject}" on property ${args.propertyId}`, args.confirm);
+      if (blocked) return blocked;
+      const description = [
+        `Channel: ${args.channel}`,
+        `Date: ${createdAt.slice(0, 10)}`,
+        ...(args.counterparties.length ? [`Counterparties: ${args.counterparties.join(", ")}`] : []),
+        "",
+        args.summary,
+      ].join("\n");
+      const res = await lendlord.client.post<Communication | Communication[]>("/api/communications", {
+        propertyDetailsId: args.propertyId,
+        tenant: args.tenantIds,
+        shared: false,
+        description,
+        summary: args.subject,
+        status: "open",
+        type: "maintenanceReport",
+        maintenanceType: args.maintenanceType,
+        createdAt,
+      });
+      const created = Array.isArray(res) ? res[0] : res;
+      if (!created?._id) return fail("Lendlord did not return the new record.");
+      if (args.status === "closed")
+        await lendlord.client.put(`/api/communications/${created._id}`, { status: "closed" });
+      return json({ id: created._id, date: created.createdAt, subject: args.subject, status: args.status });
     }),
   );
 

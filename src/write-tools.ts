@@ -3,8 +3,10 @@ import { basename, extname } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { LendlordError, RETRY_DELAYS_MS, sleep } from "./client.js";
+import { coerceFields, PERCENT_NOTE, propertyFieldKind } from "./fields.js";
 import type { LendlordDocument, PropertyDetails } from "./lendlord.js";
-import { DATE_FIELD, EDITABLE_PROPERTY_FIELDS, isComputedField, PROPERTY_DOCUMENT_SLOTS } from "./schema.js";
+import { EDITABLE_PROPERTY_FIELDS, isComputedField, PROPERTY_DOCUMENT_SLOTS } from "./schema.js";
 import { fail, json, safe, type ToolContext } from "./tools.js";
 
 const WRITE = { readOnlyHint: false, destructiveHint: false, openWorldHint: true } as const;
@@ -33,13 +35,13 @@ export const MIME: Record<string, string> = {
   ".mov": "video/quicktime",
 };
 
-/** Lendlord stores dates as ISO timestamps; accept YYYY-MM-DD from agents. */
+/** Validate and coerce property fields: dates to ISO, money/area/percent strings to numbers (throws FieldError). */
+export function coercePropertyFields(fields: Record<string, unknown>) {
+  return coerceFields(fields, propertyFieldKind);
+}
+
 export function normaliseFields(fields: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(fields)) {
-    out[k] = DATE_FIELD.test(k) && typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00.000Z` : v;
-  }
-  return out;
+  return coercePropertyFields(fields).values;
 }
 
 /** Full replacement body for /api/updateProperty: current editable fields + changes; null deletes a field. */
@@ -95,6 +97,7 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
       annotations: WRITE,
     },
     safe(async ({ address, postcode, city, status, ownerApplicantId, fields, confirm: ok }) => {
+      const { values, conversions } = coercePropertyFields(fields ?? {});
       const blocked = gate(`add property "${address}"`, ok);
       if (blocked) return blocked;
       const user = await lendlord.user();
@@ -104,7 +107,7 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
         "HMO Property": "No",
         "Capital Gains Tax": 0,
         Ownership: "Private",
-        ...fields,
+        ...values,
         "Property Address": address,
         ...(city ? { "Property City": city } : {}),
         ...(postcode ? { "Property Postcode": postcode } : {}),
@@ -116,7 +119,10 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
         country: user.client?.country ?? "uk",
       });
       lendlord.invalidate();
-      return json({ created: created.map((p) => ({ id: p._id, address: p.property["Property Address"] })) });
+      return json({
+        created: created.map((p) => ({ id: p._id, address: p.property["Property Address"] })),
+        ...(conversions.length ? { conversions } : {}),
+      });
     }),
   );
 
@@ -124,8 +130,7 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
     "update_property",
     {
       title: "Update property",
-      description:
-        "Change fields on a property. Only the fields you pass change; set a field to null to clear it. Dates as YYYY-MM-DD. Field names from list_property_fields.",
+      description: `Change fields on a property. Only the fields you pass change; set a field to null to clear it. Field names from list_property_fields. Dates as YYYY-MM-DD (DD/MM/YYYY also accepted). Money accepts 150000, "£150,000" or "150k". "Internal Area" is square metres ("73", "73 sq m"; "790 sq ft" is converted). ${PERCENT_NOTE} Invalid values are rejected with a field-specific error.`,
       inputSchema: {
         propertyId: z.string(),
         fields: z.record(z.string(), fieldValue),
@@ -137,12 +142,13 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
       const computed = Object.keys(fields).filter(isComputedField);
       if (computed.length)
         return fail(`These fields are calculated by Lendlord and can't be set: ${computed.join(", ")}`);
+      const { values, conversions } = coercePropertyFields(fields);
       const blocked = gate(`update property ${propertyId}`, ok);
       if (blocked) return blocked;
       const current = await lendlord.property(propertyId);
       const user = await lendlord.user();
       const res = await lendlord.client.post<{ propertiesUpdated: PropertyDetails[] }>("/api/updateProperty", {
-        properties: [mergeProperty(current, fields)],
+        properties: [mergeProperty(current, values)],
         country: user.client?.country ?? "uk",
       });
       lendlord.invalidate();
@@ -151,6 +157,7 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
       return json({
         id: updated._id,
         changed: Object.fromEntries(Object.keys(fields).map((k) => [k, updated.property[k] ?? null])),
+        ...(conversions.length ? { conversions } : {}),
       });
     }),
   );
@@ -263,7 +270,32 @@ export async function uploadDocument(
   form.append("file", new Blob([new Uint8Array(opts.file.data)], { type: opts.file.type }), opts.file.name);
   form.append("name", opts.name);
   form.append("entities", JSON.stringify([{ entityType: opts.entityType, entityId: opts.entityId }]));
-  return client.upload<LendlordDocument>("/api/documents", form);
+
+  const startedAt = Date.now();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await client.upload<LendlordDocument>("/api/documents", form);
+    } catch (err) {
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (!(err instanceof LendlordError) || !err.transient || delay === undefined) throw err;
+      // Lendlord sometimes stores the file and still answers "500 socket hang up" (issue #7).
+      // Only re-upload if the document really isn't there, so retries never create duplicates.
+      await sleep(delay);
+      const landed = await findUploaded(client, opts, startedAt).catch(() => undefined);
+      if (landed) return landed;
+    }
+  }
+}
+
+async function findUploaded(
+  client: ToolContext["lendlord"]["client"],
+  opts: { entityType: string; entityId: string; key: string; name: string },
+  since: number,
+): Promise<LendlordDocument | undefined> {
+  const docs = await client.get<LendlordDocument[]>(`/api/documents/${opts.entityType}/${opts.entityId}`);
+  return docs.find(
+    (d) => d.key === opts.key && d.name === opts.name && Date.parse(d.createdAt ?? d.date ?? "") >= since - 5 * 60_000,
+  );
 }
 
 async function loadFile(args: {
