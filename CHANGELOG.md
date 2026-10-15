@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here. Versions follow [Semantic Versioning](https://semver.org/). From 0.1.0 on, this file is maintained by [release-please](https://github.com/googleapis/release-please) from [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [0.4.1](https://github.com/dniasoff/lendlord-mcp/compare/v0.4.0...v0.4.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* stabilize concurrent startup and communication paging ([#17](https://github.com/dniasoff/lendlord-mcp/issues/17)) ([468e806](https://github.com/dniasoff/lendlord-mcp/commit/468e80614f27e10ca38c9569063fc232dd9fce53))
+
 ## [0.4.0](https://github.com/dniasoff/lendlord-mcp/compare/v0.3.0...v0.4.0) (2026-10-15)
 
 
