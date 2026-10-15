@@ -85,4 +85,4 @@ jobs:
       - name: Use an npm with trusted publishing support (>= 11.5.1)
         run: npm install -g npm@latest && npm --version
       - run: npm ci
-      - run: npm publish --provenance --access public
+      - run: npm publish --provenance --access public --loglevel verbose
