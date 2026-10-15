@@ -50,5 +50,6 @@
     "lendlord",
     "landlord",
     "property-management"
-  ]
+  ],
+  "license": "MIT"
 }

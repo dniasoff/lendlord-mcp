@@ -70,28 +70,19 @@ jobs:
     needs: target
     if: ${{ !cancelled() && needs.target.result == 'success' }}
     runs-on: ubuntu-latest
+    # Trusted publishing (OIDC): npm verifies this workflow, so no token secret is needed.
     permissions:
       contents: read
       id-token: write
-    env:
-      # setup-node exports a placeholder NODE_AUTH_TOKEN, so test the secret itself.
-      HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
     steps:
-      - name: No NPM_TOKEN secret, skipping npm publish
-        if: env.HAS_NPM_TOKEN != 'true'
-        run: echo "Add an NPM_TOKEN repository secret to publish releases to npm."
       - uses: actions/checkout@v5
-        if: env.HAS_NPM_TOKEN == 'true'
         with:
           ref: ${{ needs.target.outputs.tag }}
       - uses: actions/setup-node@v5
-        if: env.HAS_NPM_TOKEN == 'true'
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-      - if: env.HAS_NPM_TOKEN == 'true'
-        run: npm ci
-      - if: env.HAS_NPM_TOKEN == 'true'
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Use an npm with trusted publishing support (>= 11.5.1)
+        run: npm install -g npm@latest && npm --version
+      - run: npm ci
+      - run: npm publish --provenance --access public

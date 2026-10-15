@@ -141,6 +141,10 @@ The project uses [Semantic Versioning](https://semver.org/), driven by [Conventi
 1. bumps `package.json`, `server.json` and `CHANGELOG.md`, and tags `vX.Y.Z`;
 2. creates the GitHub release;
 3. publishes `ghcr.io/dniasoff/lendlord-mcp:X.Y.Z` (and `:latest`);
-4. publishes to npm with a signed provenance statement (uses the `NPM_TOKEN` repository secret).
+4. publishes to npm via [trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC, no token) with a signed provenance statement.
 
 To pin a version, use `npx -y lendlord-mcp@0.1.0` (or `github:dniasoff/lendlord-mcp#v0.1.0`) or the matching Docker tag. `lendlord-mcp --version` and `GET /health` report the running version.
+
+## License
+
+[MIT](LICENSE)
