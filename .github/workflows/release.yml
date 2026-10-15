@@ -46,6 +46,7 @@ jobs:
   docker:
     name: Publish Docker image
     needs: target
+    if: ${{ !cancelled() && needs.target.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -67,6 +68,7 @@ jobs:
   npm:
     name: Publish to npm
     needs: target
+    if: ${{ !cancelled() && needs.target.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
