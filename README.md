@@ -1,5 +1,7 @@
 # lendlord-mcp
 
+[![npm](https://img.shields.io/npm/v/lendlord-mcp)](https://www.npmjs.com/package/lendlord-mcp) [![CI](https://github.com/dniasoff/lendlord-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dniasoff/lendlord-mcp/actions/workflows/ci.yml)
+
 An [MCP](https://modelcontextprotocol.io) server that lets AI agents (Claude Code, Claude Desktop, Claude.ai connectors, or any MCP client) manage a [Lendlord](https://app.lendlord.io) landlord account: properties, documents, tenants, maintenance, tasks, rent, transactions, compliance, and filing emails against properties.
 
 Lendlord has no public API. This server wraps the private JSON API used by the Lendlord web app, reverse-engineered from browser traffic and the public JS bundle ([`docs/api.md`](docs/api.md)). **Every write tool has passed a live round-trip test** against a real account (`test/live-write.test.ts`): it creates a throwaway property, exercises the tool, reads the result back, and cleans up.
@@ -15,7 +17,7 @@ Lendlord has no public API. This server wraps the private JSON API used by the L
   "mcpServers": {
     "lendlord": {
       "command": "npx",
-      "args": ["-y", "github:dniasoff/lendlord-mcp"],
+      "args": ["-y", "lendlord-mcp"],
       "env": {
         "LENDLORD_EMAIL": "you@example.com",
         "LENDLORD_PASSWORD": "your-password"
@@ -28,7 +30,7 @@ Lendlord has no public API. This server wraps the private JSON API used by the L
 Claude Code CLI:
 
 ```bash
-claude mcp add lendlord -e LENDLORD_EMAIL=you@example.com -e LENDLORD_PASSWORD=... -- npx -y github:dniasoff/lendlord-mcp
+claude mcp add lendlord -e LENDLORD_EMAIL=you@example.com -e LENDLORD_PASSWORD=... -- npx -y lendlord-mcp
 ```
 
 ### Remote (online / hosted agents)
@@ -43,7 +45,7 @@ docker run -p 8080:8080 \
   lendlord-mcp
 ```
 
-Without Docker: `MCP_TRANSPORT=http MCP_AUTH_TOKEN=... npx -y github:dniasoff/lendlord-mcp`. `GET /health` is the health check, and every `/mcp` request must send `Authorization: Bearer <MCP_AUTH_TOKEN>`.
+Without Docker: `MCP_TRANSPORT=http MCP_AUTH_TOKEN=... npx -y lendlord-mcp`. `GET /health` is the health check, and every `/mcp` request must send `Authorization: Bearer <MCP_AUTH_TOKEN>`.
 
 ## Safety model
 
@@ -139,6 +141,6 @@ The project uses [Semantic Versioning](https://semver.org/), driven by [Conventi
 1. bumps `package.json`, `server.json` and `CHANGELOG.md`, and tags `vX.Y.Z`;
 2. creates the GitHub release;
 3. publishes `ghcr.io/dniasoff/lendlord-mcp:X.Y.Z` (and `:latest`);
-4. publishes to npm, if an `NPM_TOKEN` repository secret is set.
+4. publishes to npm with a signed provenance statement (uses the `NPM_TOKEN` repository secret).
 
-To pin a version, use `npx -y github:dniasoff/lendlord-mcp#v0.1.0` or the matching Docker tag. `lendlord-mcp --version` and `GET /health` report the running version.
+To pin a version, use `npx -y lendlord-mcp@0.1.0` (or `github:dniasoff/lendlord-mcp#v0.1.0`) or the matching Docker tag. `lendlord-mcp --version` and `GET /health` report the running version.
