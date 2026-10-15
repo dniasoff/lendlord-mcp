@@ -10,14 +10,14 @@ export interface ToolContext {
   guard: WriteGuard;
 }
 
-const json = (value: unknown): CallToolResult => ({
+export const json = (value: unknown): CallToolResult => ({
   content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
 });
 
-const fail = (message: string): CallToolResult => ({ content: [{ type: "text", text: message }], isError: true });
+export const fail = (message: string): CallToolResult => ({ content: [{ type: "text", text: message }], isError: true });
 
 /** Wrap a handler so API failures come back as tool errors instead of protocol errors. */
-function safe<A>(fn: (args: A) => Promise<CallToolResult>) {
+export function safe<A>(fn: (args: A) => Promise<CallToolResult>) {
   return async (args: A): Promise<CallToolResult> => {
     try {
       return await fn(args);
@@ -222,7 +222,7 @@ export function registerTools(server: McpServer, { lendlord, guard }: ToolContex
   );
 }
 
-const DATE_FIELD = /(due|end|expiry|expiration|renewal) date$/i;
+const DATE_FIELD = /(due|end|expiry|expiration|renewal|next check) date$|contract end$/i;
 const DAY_MS = 86_400_000;
 
 export function complianceItems(properties: PropertyDetails[], withinDays: number, now = Date.now()) {

@@ -4,7 +4,12 @@ An [MCP](https://modelcontextprotocol.io) server that lets AI agents (Claude Cod
 
 Lendlord has no public API or MCP server. This project wraps the private JSON API used by the Lendlord web app, reverse-engineered from browser traffic and the public JS bundle. See [`docs/api.md`](docs/api.md).
 
-> **Status:** early. Working now: the core client (encryption, key auto-discovery, login/session, re-login), stdio and HTTP transports, once-per-session write confirmation, and read tools (`get_account`, `list_properties`, `get_property`, `list_documents`, `get_rent_collection`, `list_transactions`, `get_profit_and_loss`, `list_communications`, `compliance_overview`), plus the `lendlord_request` escape hatch. Dedicated write tools come next, and each ships only after a live round-trip test. The plan is tracked in Beads (`bd ready`).
+> **Status:** early, but usable. Every tool below marked ✅ has passed a live round-trip test against a real account (`test/live*.test.ts`).
+>
+> - ✅ Read: `get_account`, `list_properties`, `get_property`, `list_documents`, `get_rent_collection`, `list_transactions`, `get_profit_and_loss`, `list_communications`, `compliance_overview`, `list_property_fields`
+> - ✅ Write: `add_property`, `update_property`, `delete_property`, `upload_document`, `rename_document`, `delete_document`
+> - Escape hatch: `lendlord_request` (any endpoint)
+> - Next: email → property filing, tenants, communications writes, document linking and sending. Tracked in Beads (`bd ready`).
 
 > **Disclaimer:** Unofficial and not affiliated with Lendlord. It uses undocumented endpoints that can change without notice. Use it only with your own account, and check Lendlord's terms of service before relying on it.
 
@@ -183,7 +188,10 @@ npm install
 npm run build
 npm test                                   # unit + in-memory MCP tests, no network
 LENDLORD_LIVE_TESTS=1 node --env-file=.env node_modules/vitest/vitest.mjs run   # read-only live tests
+LENDLORD_LIVE_WRITE_TESTS=1 LENDLORD_LIVE_UPLOAD_TESTS=1 node --env-file=.env node_modules/vitest/vitest.mjs run test/live-write.test.ts
 ```
+
+The write test creates a throwaway `ZZ TEST lendlord-mcp …` property, exercises every write tool through MCP, checks each result by reading it back, and deletes the property again.
 
 Put `LENDLORD_EMAIL` / `LENDLORD_PASSWORD` in a local `.env` file. It is git-ignored.
 

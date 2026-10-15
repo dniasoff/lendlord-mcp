@@ -70,16 +70,16 @@ encryptPayload(JSON.stringify(body))  ->  "<16-byte IV hex>:<ciphertext hex>"
 }
 ```
 
-Property fields use the **human-readable column names** shown in the UI as their keys.
+Property fields use the **human-readable column names** shown in the UI as their keys. Ownership is stored as `"Applicant 1": <applicantId>` plus `"Ownership Percentage 1": 1` (a fraction). Dates are ISO timestamps. Fields such as `LTV`, `Equity`, `Gross Monthly Cashflow`, `Last 12 Months …`, `Annual …` and `10Y …` are recomputed by the server on every save. The full list of editable fields is in `src/schema.ts`.
 
 ## Properties
 
 | Method | Path | Body |
 |---|---|---|
-| POST | `/api/addProperties` | enc `{ properties: [{ property, applicants, … }], country }` returns the created array |
-| POST | `/api/updateProperty` | enc `{ properties: [{ _id, clientDetailsId, property, applicants, status }], country }` returns `{ propertiesUpdated }` |
+| POST | `/api/addProperties` | ✅ verified live. enc `{ properties: [{ status:"active"\|"potential", clientDetailsId, property, applicants:[applicantId], assumptions:{} }], country:"uk" }` returns the created array |
+| POST | `/api/updateProperty` | ✅ verified live. enc `{ properties: [{ _id, status, clientDetailsId, property, applicants, assumptions }], country }` returns `{ propertiesUpdated, tenantsUpdated }`. **`property` is a full replacement**: send every editable field, because omitted fields are removed |
 | PUT | `/api/updateSingleProperty/:id` | enc `{ property, country }` |
-| DELETE | `/api/deleteProperty/:id` | |
+| DELETE | `/api/deleteProperty/:id` | ✅ verified live |
 | POST | `/api/saleProperty` / PUT `/api/saleProperty/:id` | enc |
 | PUT | `/api/unSoldProperty/:id` | |
 | GET | `/api/soldProperties` | |
@@ -96,12 +96,12 @@ Constant `o = "/api/documents"`.
 | Method | Path | Body |
 |---|---|---|
 | GET | `/api/documents` | `[{ _id, clientDetailsId, key, name, size, date, path, thumbnail, entities:[{entityType, entityId}], … }]` |
-| GET | `/api/documents/:entityType/:entityId` | documents for one entity |
-| POST | `/api/documents` | multipart built by a helper that flattens an object into FormData (arrays become indexed keys). Fields seen: `key`, `file`, `name`, `entities`, optional `type`, `collectionName`, `thumbnailTemplate` |
+| GET | `/api/documents/:entityType/:entityId` | ✅ documents for one entity |
+| POST | `/api/documents` | ✅ verified live. Multipart fields: `key` (slot key such as `gasCertificate`/`epc`/`floorPlan`, or any custom key), `file`, `name`, and `entities` as **one JSON-string field**: `'[{"entityType":"property","entityId":"…"}]'`. Returns the document. Uploads did not reduce `numberOfFilesUploadsLeft` in testing |
 | PUT | `/api/documents/:id` | multipart, replaces the file |
-| PATCH | `/api/documents/:id` | enc JSON, updates metadata |
-| PATCH | `/api/documents/:a/:b/:c` | enc JSON |
-| DELETE | `/api/documents/:a/:b/:c` | the three path params are unconfirmed |
+| PATCH | `/api/documents/:id` | ✅ verified live. enc `{ name }` renames |
+| PATCH | `/api/documents/:docId/:entityType/:entityId` | enc JSON, edits the per-entity link |
+| DELETE | `/api/documents/:docId/:entityType/:entityId` | ✅ verified live. Unlinks the document, and deletes it when that was its only link |
 | POST | `/api/documents/copy` | enc `{ entities, key, path, … }`, links an existing file to other entities |
 | POST | `/api/documents/:id/send` | enc, emails the document |
 | GET | `/api/getSignedUrl?download=&url=&fileName=` | S3 signed download URL |
@@ -109,7 +109,7 @@ Constant `o = "/api/documents"`.
 | POST | `/api/openAI/extractDataFromCertificate` | multipart `{ file, certificateType }` |
 | GET | `/api/documentCollection` | document collections (sign/requests) |
 
-Entity types seen: `property`, `tenant`, `portfolio`.
+Entity types seen: `property`, `tenant`, `portfolio`. Property document slots (key → label) are listed in `src/schema.ts`. The upload dialog accepts `message/rfc822`, so `.eml` emails can be stored directly.
 
 ## Tenants and rent
 
