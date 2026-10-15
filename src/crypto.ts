@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -98,8 +98,11 @@ export async function resolveKey(baseUrl: string, fetchImpl: Fetch = fetch): Pro
   }
   const { key, runtime } = await discoverKey(baseUrl, fetchImpl);
   try {
-    await mkdir(join(homedir(), ".cache", "lendlord-mcp"), { recursive: true });
-    await writeFile(cacheFile, JSON.stringify({ key, runtime, discoveredAt: new Date().toISOString() }));
+    const directory = join(homedir(), ".cache", "lendlord-mcp");
+    await mkdir(directory, { recursive: true });
+    const temporary = join(directory, `key.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
+    await writeFile(temporary, JSON.stringify({ key, runtime, discoveredAt: new Date().toISOString() }));
+    await rename(temporary, cacheFile);
   } catch {
     // Cache is best-effort.
   }

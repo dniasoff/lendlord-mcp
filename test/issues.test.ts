@@ -171,5 +171,6 @@ describe("listCommunications paging (#5)", () => {
     const res = await listCommunications(lendlord, { limit: 1000, skip: 0, propertyId: "odd" });
     expect(res.communications).toHaveLength(125);
     expect(res.communications.every((c) => c.propertyDetailsId === "odd")).toBe(true);
+    expect(res).toMatchObject({ hasMore: false, nextSkip: 125 });
   });
 });
