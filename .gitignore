@@ -1,0 +1,19 @@
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.gate.lock*
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Secrets & captured Lendlord data (contains real portfolio data — never commit)
+.env
+.env.*
+.playwright-mcp/
+captures/
+*.har

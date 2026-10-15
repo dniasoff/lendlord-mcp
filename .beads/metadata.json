@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "lendlord_mcp",
+  "project_id": "d4e3a51b-5a2d-4e51-8134-f7b6575bf0b9"
+}
