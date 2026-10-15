@@ -149,17 +149,24 @@ export function registerTools(server: McpServer, { lendlord, guard }: ToolContex
     "list_transactions",
     {
       title: "List transactions",
-      description: "Bank/manual transactions between two dates.",
+      description:
+        "Bank/manual transactions between two dates, with optional filters to find the one you want (e.g. the payment an invoice belongs to). A transaction's `file` is its attached receipt (see attach_transaction_receipt).",
       inputSchema: {
         startDate: isoDate,
         endDate: isoDate,
         status: z.string().optional().describe('e.g. "mapped" (categorised); omit for all'),
+        search: z.string().optional().describe("Case-insensitive text to find in the description"),
+        amount: z.number().optional().describe("Exact amount in pounds, e.g. 27.74"),
+        type: z.enum(["received", "spent"]).optional(),
+        propertyId: z.string().optional().describe("Only transactions assigned to this property"),
+        hasReceipt: z.boolean().optional().describe("true: only with a receipt; false: only without"),
       },
       annotations: READ,
     },
-    safe(async ({ startDate, endDate, status }) =>
-      json(await lendlord.client.get("/api/transactions", { startDate, endDate, status })),
-    ),
+    safe(async ({ startDate, endDate, status, search, amount, type, propertyId, hasReceipt }) => {
+      const all = await lendlord.client.get<TransactionRecord[]>("/api/transactions", { startDate, endDate, status });
+      return json(filterTransactions(all, { search, amount, type, propertyId, hasReceipt }));
+    }),
   );
 
   server.registerTool(
@@ -295,4 +302,32 @@ export async function listCommunications(
     hasMore = Boolean(page.hasMore) && items.length > 0;
   }
   return { communications: found, hasMore, nextSkip: skip };
+}
+
+export interface TransactionRecord {
+  _id: string;
+  type?: string;
+  description?: string;
+  amount?: number;
+  date?: string;
+  status?: string;
+  propertyDetailsId?: string;
+  /** The attached receipt (stored on the transaction, not in the documents store). */
+  file?: { url: string; name: string };
+  [field: string]: unknown;
+}
+
+export function filterTransactions(
+  all: TransactionRecord[],
+  f: { search?: string; amount?: number; type?: string; propertyId?: string; hasReceipt?: boolean },
+): TransactionRecord[] {
+  const needle = f.search?.toLowerCase();
+  return all.filter(
+    (t) =>
+      (!needle || (t.description ?? "").toLowerCase().includes(needle)) &&
+      (f.amount === undefined || Math.abs((t.amount ?? Number.NaN) - f.amount) < 0.005) &&
+      (!f.type || t.type === f.type) &&
+      (!f.propertyId || t.propertyDetailsId === f.propertyId) &&
+      (f.hasReceipt === undefined || Boolean(t.file) === f.hasReceipt),
+  );
 }

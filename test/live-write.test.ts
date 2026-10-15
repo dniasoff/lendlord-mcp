@@ -17,6 +17,7 @@ describe.skipIf(!live)("live Lendlord writes", () => {
   let propertyId: string | undefined;
   let otherPropertyId: string | undefined;
   let tenantId: string | undefined;
+  let txId: string | undefined;
   // Unique per run so find_property can't match leftovers from earlier runs.
   const postcode = `ZZ${Math.floor(Math.random() * 90 + 10)} ${Math.floor(Math.random() * 9)}ZZ`;
 
@@ -253,6 +254,68 @@ describe.skipIf(!live)("live Lendlord writes", () => {
       for (const d of await call("list_documents", { entityId: propertyId }))
         await call("delete_document", { documentId: d.id, entityId: propertyId });
       expect(await call("list_documents", { entityId: propertyId })).toEqual([]);
+    },
+    120_000,
+  );
+
+  // Bank transactions keep their attachment as a receipt on the transaction (not in the documents
+  // store). The test makes its own manual transaction, so connected bank data is never touched.
+  it.skipIf(!uploads)(
+    "attaches, replaces, downloads and removes a bank transaction receipt",
+    async () => {
+      const raw = LendlordClient.fromEnv();
+      const user = await raw.get<{ clientDetailsId: string }>("/api/getUserById");
+      const form = new FormData();
+      for (const [k, v] of Object.entries({
+        description: `ZZ TEST lendlord-mcp receipt ${Date.now()} - DELETE ME`,
+        type: "spent",
+        amount: "1",
+        date: `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`,
+        bankAccountId: "",
+        clientDetailsId: user.clientDetailsId,
+      })) {
+        form.append(k, v);
+      }
+      const created = await raw.upload<{ transaction: { _id: string } }>("/api/transactions", form, "POST");
+      txId = created.transaction._id;
+      const day = new Date().toISOString().slice(0, 10);
+      const b64 = (s: string) => Buffer.from(s).toString("base64");
+
+      try {
+        const found = await call("list_transactions", { startDate: day, endDate: day, amount: 1, hasReceipt: false });
+        expect(found.map((t: { _id: string }) => t._id)).toContain(txId);
+
+        const first = await call("attach_transaction_receipt", {
+          transactionId: txId,
+          base64: b64("receipt one"),
+          fileName: "zz-receipt-1.txt",
+        });
+        expect(first.receipt.name).toBe("zz-receipt-1.txt");
+        expect(first.replaced).toBeUndefined();
+
+        const second = await call("attach_transaction_receipt", {
+          transactionId: txId,
+          base64: b64("receipt two"),
+          fileName: "zz-receipt-2.pdf",
+        });
+        expect(second).toMatchObject({ receipt: { name: "zz-receipt-2.pdf" }, replaced: "zz-receipt-1.txt" });
+
+        const got = await call("get_transaction", { transactionId: txId });
+        expect(got.receipt.name).toBe("zz-receipt-2.pdf");
+        expect(await (await fetch(got.receipt.downloadUrl)).text()).toBe("receipt two");
+        const withReceipt = await call("list_transactions", { startDate: day, endDate: day, hasReceipt: true });
+        expect(withReceipt.map((t: { _id: string }) => t._id)).toContain(txId);
+
+        await call("remove_transaction_receipt", { transactionId: txId });
+        expect((await call("get_transaction", { transactionId: txId })).receipt).toBeNull();
+        expect((await call("remove_transaction_receipt", { transactionId: txId })).note).toMatch(/Nothing to remove/);
+        await expect(call("get_transaction", { transactionId: "000000000000000000000000" })).rejects.toThrow(
+          /No transaction with id/,
+        );
+      } finally {
+        await raw.post("/api/transaction/delete", { transactionsIds: [txId], isPermanently: true });
+        txId = undefined;
+      }
     },
     120_000,
   );

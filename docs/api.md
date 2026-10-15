@@ -136,12 +136,27 @@ Tenant form fields: `name, email, phone, mobile, dob, notes, propertyDetailsId, 
 
 ## Money
 
-| Method | Path |
-|---|---|
-| GET | `/api/transactions?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&status=mapped` |
-| GET | `/api/getTransactionsFromLastLogin` returns `{ newTransactions, mappedTransactions }` |
-| GET | `/api/pnlData` returns `{ data: { <propertyDetailsId>: { months: { "YYYY-MM": … }, purchaseCosts } } }` |
-| GET | `/api/pnlCategory`, `/api/pnlCategoryMapping` |
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/transactions?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&status=mapped` | |
+| GET | `/api/getAggregatedTransaction/:id` | ✅ one transaction (returned as a one-element array; empty for unknown ids) |
+| GET | `/api/getTransactionsFromLastLogin` returns `{ newTransactions, mappedTransactions }` | |
+| GET | `/api/pnlData` returns `{ data: { <propertyDetailsId>: { months: { "YYYY-MM": … }, purchaseCosts } } }` | |
+| GET | `/api/pnlCategory`, `/api/pnlCategoryMapping` | |
+
+### Bank transaction receipts (attachments)
+
+A bank/manual transaction's attachment is a **receipt stored on the transaction** as `file: { url, name }` (S3 path `Receipts/<client>/Transactions/<id>/<timestamp>_<name>`). It is **not** in the documents store: `GET /api/documents/transaction/:id` is always empty and `upload_document` cannot reach it. A transaction holds one receipt.
+
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/transactions` | ✅ multipart, creates a transaction. Required: `clientDetailsId`, `description`, `type` (`received`\|`spent`), `amount`, `date`. `bankAccountId: ""` makes it a manual transaction (no bank feed) |
+| PUT | `/api/transactions/:id` | ✅ multipart. The web app re-sends **every plain value** of the transaction (strings, numbers, booleans, nulls; not nested objects such as the populated `category`) plus `file` (the new receipt) and `fileName`. Send `removeReceipt=true` instead of `file` to delete the receipt. Omitting both keeps the existing receipt. Returns `{ transaction }` |
+| GET | `/api/getSignedUrl?download=true&url=<file.url>&fileName=<file.name>` | ✅ returns `{ url }`, a temporary S3 link |
+| POST | `/api/transaction/delete` | ✅ enc `{ transactionsIds: [id], isPermanently: false }` soft-deletes (Deleted tab); `true` deletes for good |
+| POST | `/api/transaction/restore` | enc `{ transactionsIds }` |
+
+Date filters treat `endDate` as midnight, so a transaction with a time-of-day component on the end date is excluded (bank transactions are dated at midnight).
 
 ## Communications (maintenance reports and messages)
 

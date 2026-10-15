@@ -66,7 +66,7 @@ Without Docker: `MCP_TRANSPORT=http MCP_AUTH_TOKEN=... npx -y lendlord-mcp`. `GE
 | Tenants | `list_tenants`, `get_tenant` | `add_tenant`, `update_tenant`, `delete_tenant` |
 | Maintenance & history | `list_communications` (up to 1000, filter by property), `get_communication` | `create_maintenance_report`, `log_communication` (back-dated email/call history), `update_communication`, `add_communication_message`, `delete_communication` |
 | Tasks & alerts | `list_tasks` | `create_task`, `update_task` (edit, complete, reopen, delete) |
-| Money | `get_rent_collection`, `list_transactions`, `get_profit_and_loss` | |
+| Money | `get_rent_collection`, `list_transactions` (search, amount, type, property, with/without receipt), `get_transaction`, `get_profit_and_loss` | `attach_transaction_receipt`, `remove_transaction_receipt` |
 | Anything else | `lendlord_request` (GET) | `lendlord_request` (POST/PUT/PATCH/DELETE) |
 
 Property fields use Lendlord's own names, for example `"Property Value"`, `"EPC Due Date"` and `"Gas Certificate Due Date"`. Call `list_property_fields` for the full list. Updates are partial: only the fields you pass change, and `null` clears a field.
@@ -96,6 +96,16 @@ The server doesn't read any mailbox. Your agent reads mail with its own email to
 3. `log_communication { propertyId, date, subject, summary, counterparties[] }` adds a dated entry to the property's communication history, so threads appear in `list_communications`. Lendlord has no generic communication log, and landlords can't start a tenant "conversation" without a tenant. So the entry is stored as a back-dated, closed maintenance report of type "Other" that isn't shared with tenants.
 
 A typical agent instruction: *"For each new email about a rental property, call find_property with the subject and body. If the top score is clearly ahead, file_email it to that property and log_communication a one-line summary. Otherwise ask me."*
+
+## Attaching invoices to payments
+
+Bank and manual transactions (payments) keep their attachment as a **receipt on the transaction**, not as a normal document, so `upload_document` can't reach them. Use:
+
+1. `list_transactions { startDate, endDate, search?, amount?, hasReceipt? }` to find the payment, for example the £27.74 Octopus payment with no receipt yet.
+2. `attach_transaction_receipt { transactionId, filePath | url | base64+fileName }` to attach the invoice. A transaction holds one attachment, and attaching again replaces it.
+3. `get_transaction` returns the receipt name and a temporary download link, and `remove_transaction_receipt` removes it.
+
+Only the receipt changes: the rest of the transaction is re-saved exactly as it was.
 
 ## Configuration
 

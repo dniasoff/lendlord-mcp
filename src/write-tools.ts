@@ -185,7 +185,7 @@ export function registerWriteTools(server: McpServer, { lendlord, guard }: ToolC
     {
       title: "Upload document",
       description:
-        "Upload a file to Lendlord and link it to a property (or tenant). Provide exactly one of filePath (on the server's machine), url, or base64 + fileName. `key` is a document slot from list_property_fields (e.g. gasCertificate, epc, eicr, insurancePolicy); any other key creates a custom document. Uses the account's upload quota.",
+        "Upload a file to Lendlord and link it to a property (or tenant). To attach a file to a bank transaction (payment) use attach_transaction_receipt instead. Provide exactly one of filePath (on the server's machine), url, or base64 + fileName. `key` is a document slot from list_property_fields (e.g. gasCertificate, epc, eicr, insurancePolicy); any other key creates a custom document. Uses the account's upload quota.",
       inputSchema: {
         entityId: z.string().describe("Property id (or tenant id with entityType tenant)"),
         entityType: z.enum(["property", "tenant"]).default("property"),
@@ -298,7 +298,7 @@ async function findUploaded(
   );
 }
 
-async function loadFile(args: {
+export async function loadFile(args: {
   filePath?: string;
   url?: string;
   base64?: string;

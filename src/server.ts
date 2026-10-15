@@ -3,6 +3,7 @@ import { type GuardConfig, WriteGuard } from "./guard.js";
 import type { Lendlord } from "./lendlord.js";
 import { registerMoreTools } from "./more-tools.js";
 import { registerTools } from "./tools.js";
+import { registerTransactionTools } from "./transaction-tools.js";
 import { VERSION } from "./version.js";
 import { registerWriteTools } from "./write-tools.js";
 
@@ -21,5 +22,6 @@ export function createSessionServer(lendlord: Lendlord, guardConfig: GuardConfig
   registerTools(server, ctx);
   registerWriteTools(server, ctx);
   registerMoreTools(server, ctx);
+  registerTransactionTools(server, ctx);
   return server;
 }
